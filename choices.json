@@ -212,7 +212,7 @@
         ],
         "response_type": "single-select"
     },        
-    "lifestyle.mbr_ultra_process_food_servings": {
+    "lifestyle.mbr_ultra_processed_food_servings": {
         "values": [
             "I do not eat ultra-processed foods",
             "Rarely - Less than once per week",

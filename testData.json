@@ -1,0 +1,103 @@
+{
+  "demographic": {
+    "mbr_first_name": "test_first_name",
+    "mbr_last_name": "test_last_name",
+    "mbr_date_of_birth": "1977-01-19",
+    "mbr_gender_at_birth": "Male",
+    "mbr_race": "Asian Indian",
+    "mbr_ethnicity": "Indian",
+    "mbr_address": {
+      "mbr_street": "Some Street",
+      "mbr_city": "Plymouth",
+      "mbr_state": "MN",
+      "mbr_postal_code": "55446",
+      "mbr_country": ""
+    },
+    "mbr_country_lived_in": "None of the listed options"
+  },
+  "biometric": {
+    "mbr_height_feet": 5,
+    "mbr_height_inches": 2,
+    "mbr_weight": 154,
+    "mbr_weight_uom": "lbs"
+  },
+  "lifestyle": {
+    "mbr_smoke_cigarette": "No",
+    "mbr_cig_a_day": "",
+    "mbr_cig_total_yrs": "",
+    "mbr_cig_start_year": null,
+    "mbr_cig_end_year": null,
+    "mbr_smoke_cigar_pipe": "No",
+    "mbr_smoke_ecig_vape": "N/A",
+    "mbr_second_hand_smoking": "No",
+    "mbr_betel_leaf_quid": "No",
+    "mbr_drink_alcohol_que": "Weekly",
+    "mbr_drink_avg_consumption": 2,
+    "mbr_fruit_veg_servings": "Less than 4 cups",
+    "mbr_grain_servings": "1-2 servings",
+    "mbr_red_meat_servings": "I do not eat red meat",
+    "mbr_processed_meat_servings": "I do not eat processed meat",
+    "mbr_ultra_processed_food_servings": "I do not eat ultra-processed foods",
+    "mbr_sugary_drink": "Less than once per week",
+    "mbr_high_sps_foods": "No",
+    "mbr_mod_intense_hrs": 1,
+    "mbr_mod_intense_mins": 15,
+    "mbr_vigorous_hrs": 6,
+    "mbr_vigorous_mins": 28,
+    "mbr_birth_control_use": "N/A"
+  },
+  "medical_history": {
+    "mbr_diag_cancer_que": "No",
+    "mbr_cancer_types_hist": "N/A",
+    "mbr_chronic_medical_que": "No",
+    "mbr_chronic_medical_conditions": "N/A",
+    "mbr_infection_diagnosis": [
+      "None of the listed options"
+    ],
+    "mbr_general_diagnosis": [
+      "None of the listed options"
+    ],
+    "mbr_rcvd_radiation_therapy": [],
+    "mbr_undescend_testes": "No",
+    "mbr_CIS_testes": "No",
+    "mbr_menstruating_age_12_55": "N/A",
+    "mbr_ever_pregnant": "N/A",
+    "mbr_ever_full_term_preg": "N/A",
+    "mbr_first_full_term_preg": "N/A",
+    "mbr_menopause_status": "N/A",
+    "mbr_hormone_therapy_aft_menopause": "N/A",
+    "mbr_ivf_status": "N/A",
+    "mbr_blood_type": "A+",
+    "mbr_dysphagia_status": "No",
+    "mbr_stomach_surgery_status": "No",
+    "mbr_vaccines": [
+      "None of the listed options"
+    ],
+    "mbr_family_cancer_hist": [
+      "None of the listed options"
+    ],
+    "mbr_breast_density_status": "N/A",
+    "mbr_breast_biospy_diagnosis": "N/A",
+    "mbr_first_child_before_age_30": "N/A"
+  },
+  "carcinogen_exposure": {
+    "mbr_occupation": [
+      "None of the listed options"
+    ],
+    "mbr_expose_chem": [
+      "Arsenic",
+      "Asbestos",
+      "Benzene"
+    ],
+    "mbr_expose_env": [
+      "None of the listed options"
+    ]
+  },
+  "genetics": {
+    "mbr_genetic_test_que": "No",
+    "mbr_genetic_mutation": "N/A",
+    "mbr_genetic_syndrome": [
+      "None of the listed options"
+    ]
+  }
+}

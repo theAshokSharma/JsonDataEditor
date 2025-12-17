@@ -244,7 +244,7 @@
           "title": "How often do you eat processed meat",
           "type": "string"
         },
-        "mbr_ultra_process_food_servings": {
+        "mbr_ultra_processed_food_servings": {
           "title": "How often do you consume ultra-processed foods (e.g., packaged snacks, instant noodles, frozen meals)?",
           "type": "string"
         },
@@ -291,7 +291,7 @@
         "mbr_grain_servings",
         "mbr_red_meat_servings",
         "mbr_processed_meat_servings",
-        "mbr_ultra_process_food_servings",
+        "mbr_ultra_processed_food_servings",
         "mbr_sugary_drink",
         "mbr_high_sps_foods",
         "mbr_mod_intense_hrs",

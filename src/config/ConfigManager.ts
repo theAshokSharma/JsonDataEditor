@@ -1,11 +1,8 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
 
 export interface EditorConfig {
   schemaPath: string;
   choicesPath?: string;
-  dataPath?: string;
 }
 
 export class ConfigManager implements vscode.Disposable {
@@ -16,38 +13,380 @@ export class ConfigManager implements vscode.Disposable {
     this.context = context;
   }
 
-  async promptForConfiguration(): Promise<EditorConfig | null> {
-    // Create quick pick for file selection
-    const schemaUri = await vscode.window.showOpenDialog({
-      canSelectMany: false,
-      openLabel: 'Select Schema JSON',
-      filters: { 'JSON files': ['json'] }
+  async showConfigScreen(): Promise<EditorConfig | null> {
+    // Create webview panel for configuration
+    const panel = vscode.window.createWebviewPanel(
+      'jsonDataEditorConfig',
+      'JSON Data Editor - Configuration',
+      vscode.ViewColumn.One,
+      { enableScripts: true }
+    );
+    
+    panel.webview.html = this.getConfigHtml();
+    
+    return new Promise((resolve) => {
+      panel.webview.onDidReceiveMessage(async (message) => {
+        switch (message.command) {
+          case 'confirm':
+            const config: EditorConfig = {
+              schemaPath: message.schemaPath,
+              choicesPath: message.choicesPath || undefined
+            };
+            
+            // Validate files exist
+            const valid = await this.validateConfig(config);
+            if (valid) {
+              await this.saveConfig(config);
+              panel.dispose();
+              resolve(config);
+            } else {
+              panel.webview.postMessage({
+                command: 'validationError',
+                message: 'One or more files do not exist. Please check the file paths.'
+              });
+            }
+            break;
+            
+          case 'cancel':
+            panel.dispose();
+            resolve(null);
+            break;
+            
+          case 'browseSchema':
+            const schemaUri = await this.browseForFile('Select Schema JSON File', 'json');
+            if (schemaUri) {
+              panel.webview.postMessage({
+                command: 'updateSchemaPath',
+                path: schemaUri.fsPath
+              });
+            }
+            break;
+            
+          case 'browseChoices':
+            const choicesUri = await this.browseForFile('Select Choices JSON File (Optional)', 'json');
+            if (choicesUri) {
+              panel.webview.postMessage({
+                command: 'updateChoicesPath',
+                path: choicesUri.fsPath
+              });
+            }
+            break;
+        }
+      });
+    });
+  }
+
+  private async browseForFile(title: string, fileType: string): Promise<vscode.Uri | null> {
+    const uris = await vscode.window.showOpenDialog({
+      title,
+      filters: { [`${fileType.toUpperCase()} files`]: [fileType], 'All files': ['*'] },
+      canSelectMany: false
     });
     
-    if (!schemaUri || schemaUri.length === 0) {
-      return null; // User cancelled
+    return uris && uris.length > 0 ? uris[0] : null;
+  }
+
+  private async validateConfig(config: EditorConfig): Promise<boolean> {
+    try {
+      // Check schema file exists
+      await vscode.workspace.fs.stat(vscode.Uri.file(config.schemaPath));
+      
+      // Check choices file exists if provided
+      if (config.choicesPath) {
+        await vscode.workspace.fs.stat(vscode.Uri.file(config.choicesPath));
+      }
+      
+      return true;
+    } catch {
+      return false;
     }
+  }
 
-    const choicesUri = await vscode.window.showOpenDialog({
-      canSelectMany: false,
-      openLabel: 'Select Choices JSON (Optional)',
-      filters: { 'JSON files': ['json'] }
-    });
-
-    const dataUri = await vscode.window.showOpenDialog({
-      canSelectMany: false,
-      openLabel: 'Select Data JSON (Optional)',
-      filters: { 'JSON files': ['json'] }
-    });
-
-    const config: EditorConfig = {
-      schemaPath: schemaUri[0].fsPath,
-      choicesPath: choicesUri && choicesUri.length > 0 ? choicesUri[0].fsPath : undefined,
-      dataPath: dataUri && dataUri.length > 0 ? dataUri[0].fsPath : undefined
-    };
-
-    await this.saveConfig(config);
-    return config;
+  private getConfigHtml(): string {
+    const existingConfig = this.getConfig();
+    
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>JSON Data Editor Configuration</title>
+        <style>
+          body {
+            font-family: var(--vscode-font-family);
+            padding: 30px;
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-foreground);
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          .config-container {
+            background-color: var(--vscode-input-background);
+            border-radius: 6px;
+            padding: 30px;
+            border: 1px solid var(--vscode-input-border);
+          }
+          h2 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            color: var(--vscode-textLink-foreground);
+            border-bottom: 2px solid var(--vscode-textLink-foreground);
+            padding-bottom: 10px;
+          }
+          .form-group {
+            margin-bottom: 25px;
+          }
+          label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 14px;
+          }
+          .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+          }
+          input[type="text"] {
+            flex: 1;
+            padding: 10px 12px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            font-family: var(--vscode-font-family);
+            font-size: 14px;
+          }
+          input[type="text"]:focus {
+            outline: 2px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+          }
+          .browse-btn {
+            padding: 10px 20px;
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+          }
+          .browse-btn:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+          }
+          .required::after {
+            content: " *";
+            color: var(--vscode-errorForeground);
+          }
+          .file-info {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+          }
+          .file-info::before {
+            content: "📄";
+          }
+          .optional {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+            margin-left: 5px;
+            font-weight: normal;
+          }
+          .error-message {
+            color: var(--vscode-errorForeground);
+            background-color: var(--vscode-inputValidation-errorBackground);
+            border: 1px solid var(--vscode-inputValidation-errorBorder);
+            padding: 12px;
+            border-radius: 4px;
+            margin: 20px 0;
+            display: none;
+            font-size: 13px;
+          }
+          .buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid var(--vscode-input-border);
+          }
+          .confirm-btn {
+            padding: 12px 24px;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          .confirm-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+          }
+          .cancel-btn {
+            padding: 12px 24px;
+            background-color: transparent;
+            color: var(--vscode-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .cancel-btn:hover {
+            background-color: var(--vscode-list-hoverBackground);
+          }
+          .instructions {
+            background-color: var(--vscode-textBlockQuote-background);
+            border-left: 4px solid var(--vscode-textLink-foreground);
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 2px;
+          }
+          .instructions h3 {
+            margin-top: 0;
+            color: var(--vscode-textLink-foreground);
+          }
+        </style>
+      </head>
+      <body>
+        <div class="config-container">
+          <h2>JSON Data Editor Configuration</h2>
+          
+          <div class="instructions">
+            <h3>📋 Setup Instructions</h3>
+            <p>1. Select your JSON schema file (required)</p>
+            <p>2. Optionally select a choices file for custom dropdown options</p>
+            <p>3. Click "Confirm" to start editing your data</p>
+          </div>
+          
+          <div class="error-message" id="error-message"></div>
+          
+          <div class="form-group">
+            <label class="required">Schema JSON File</label>
+            <div class="input-group">
+              <input type="text" 
+                     id="schemaPath" 
+                     placeholder="Path to your schema.json file"
+                     value="${existingConfig?.schemaPath || ''}">
+              <button class="browse-btn" onclick="browseSchema()">Browse</button>
+            </div>
+            <div class="file-info" id="schema-info">
+              ${existingConfig?.schemaPath ? `Current: ${existingConfig.schemaPath}` : 'No schema file selected'}
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label>Choices JSON File <span class="optional">(optional)</span></label>
+            <div class="input-group">
+              <input type="text" 
+                     id="choicesPath" 
+                     placeholder="Path to your choices.json file"
+                     value="${existingConfig?.choicesPath || ''}">
+              <button class="browse-btn" onclick="browseChoices()">Browse</button>
+            </div>
+            <div class="file-info" id="choices-info">
+              ${existingConfig?.choicesPath ? `Current: ${existingConfig.choicesPath}` : 'No choices file selected'}
+            </div>
+          </div>
+          
+          <div class="buttons">
+            <button class="cancel-btn" onclick="cancel()">Cancel</button>
+            <button class="confirm-btn" onclick="confirmConfig()">Confirm & Continue</button>
+          </div>
+        </div>
+        
+        <script>
+          const vscode = acquireVsCodeApi();
+          
+          function showError(message) {
+            const errorEl = document.getElementById('error-message');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            setTimeout(() => {
+              errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+          }
+          
+          function hideError() {
+            document.getElementById('error-message').style.display = 'none';
+          }
+          
+          function updateFileInfo(fieldId, path) {
+            const infoEl = document.getElementById(fieldId + '-info');
+            if (path) {
+              infoEl.textContent = 'Selected: ' + path;
+              infoEl.style.color = 'var(--vscode-charts-green)';
+            } else {
+              infoEl.textContent = fieldId === 'schema' ? 'No schema file selected' : 'No choices file selected';
+              infoEl.style.color = 'var(--vscode-descriptionForeground)';
+            }
+          }
+          
+          function browseSchema() {
+            vscode.postMessage({ command: 'browseSchema' });
+          }
+          
+          function browseChoices() {
+            vscode.postMessage({ command: 'browseChoices' });
+          }
+          
+          function confirmConfig() {
+            const schemaPath = document.getElementById('schemaPath').value.trim();
+            const choicesPath = document.getElementById('choicesPath').value.trim();
+            
+            hideError();
+            
+            if (!schemaPath) {
+              showError('Please select a schema JSON file');
+              document.getElementById('schemaPath').focus();
+              return;
+            }
+            
+            vscode.postMessage({
+              command: 'confirm',
+              schemaPath: schemaPath,
+              choicesPath: choicesPath || undefined
+            });
+          }
+          
+          function cancel() {
+            vscode.postMessage({ command: 'cancel' });
+          }
+          
+          // Listen for messages from extension
+          window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.command) {
+              case 'updateSchemaPath':
+                document.getElementById('schemaPath').value = message.path;
+                updateFileInfo('schema', message.path);
+                hideError();
+                break;
+                
+              case 'updateChoicesPath':
+                document.getElementById('choicesPath').value = message.path;
+                updateFileInfo('choices', message.path);
+                hideError();
+                break;
+                
+              case 'validationError':
+                showError(message.message);
+                break;
+            }
+          });
+          
+          // Initialize file info displays
+          updateFileInfo('schema', '${existingConfig?.schemaPath || ''}');
+          updateFileInfo('choices', '${existingConfig?.choicesPath || ''}');
+        </script>
+      </body>
+      </html>
+    `;
   }
 
   async saveConfig(config: EditorConfig): Promise<void> {

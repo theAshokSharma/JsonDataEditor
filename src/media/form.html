@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JSON Data Editor</title>
   <style>
+    /* All your existing CSS styles */
     * {
       box-sizing: border-box;
       margin: 0;
@@ -25,6 +26,13 @@
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      align-items: center;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-right: auto;
     }
     button {
       background-color: var(--vscode-button-background);
@@ -34,9 +42,27 @@
       cursor: pointer;
       border-radius: 2px;
       font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
     button:hover {
       background-color: var(--vscode-button-hoverBackground);
+    }
+    #configBtn {
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+    }
+    #configBtn:hover {
+      background-color: var(--vscode-button-secondaryHoverBackground);
+    }
+    .schema-info {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      padding: 6px 10px;
+      background-color: var(--vscode-input-background);
+      border-radius: 4px;
+      border: 1px solid var(--vscode-input-border);
     }
     .form-group {
       margin-bottom: 15px;
@@ -369,38 +395,34 @@
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <button id="loadDataBtn">Load Data File</button>
-      <button id="saveBtn">Save to File</button>
-      <button id="exportBtn">Copy to Clipboard</button>
-      <button id="reloadBtn" style="margin-left: auto;">Reload Form</button>
+     <div class="header">
+      <div class="header-left">
+        <button id="configBtn" title="Change schema/choices configuration">
+          <span style="font-size: 14px;">⚙️</span> Config
+        </button>
+        <div class="schema-info">
+          Schema: <span id="schema-name">Loading...</span>
+        </div>
+      </div>
+      
+      <button id="loadDataBtn">
+        <span style="font-size: 14px;">📂</span> Load Data
+      </button>
+      <button id="saveBtn">
+        <span style="font-size: 14px;">💾</span> Save
+      </button>
+      <button id="exportBtn">
+        <span style="font-size: 14px;">📋</span> Copy
+      </button>
     </div>
     
+    <!-- Main Content -->
     <div id="no-schema" class="no-schema">
-      <h2>Loading Form...</h2>
-      <p>Please wait while the form loads</p>
-      <div class="loading" style="margin: 20px auto;"></div>
+      <h2>No Schema Loaded</h2>
+      <p>Click "Load Schema" to begin</p>
     </div>
     
     <div id="editor-form"></div>
-
-    <div class="status-bar" style="display: none;">
-      <div class="status-info">
-        <div class="status-item">
-          <span class="status-icon">📋</span>
-          <span id="schema-status">Schema: Not loaded</span>
-        </div>
-        <div class="status-item">
-          <span class="status-icon">📝</span>
-          <span id="choices-status">Choices: Not loaded</span>
-        </div>
-        <div class="status-item">
-          <span class="status-icon">💾</span>
-          <span id="data-status">Data: Not loaded</span>
-        </div>
-      </div>
-      <div id="last-saved"></div>
-    </div>
   </div>
 
   <script>
@@ -415,86 +437,122 @@
     // Initialize VS Code API
     const vscode = acquireVsCodeApi();
 
+      // Debug: Check if elements exist
+    console.log('Debug - Checking elements:');
+    console.log('configBtn exists:', document.getElementById('configBtn') !== null);
+    console.log('loadDataBtn exists:', document.getElementById('loadDataBtn') !== null);
+    console.log('saveBtn exists:', document.getElementById('saveBtn') !== null);
+    console.log('exportBtn exists:', document.getElementById('exportBtn') !== null);
+    
+
+
     // DOM elements
+    const configBtn = document.getElementById('configBtn');
     const loadDataBtn = document.getElementById('loadDataBtn');
     const saveBtn = document.getElementById('saveBtn');
     const exportBtn = document.getElementById('exportBtn');
-    const reloadBtn = document.getElementById('reloadBtn');
-    const noSchemaDiv = document.getElementById('no-schema');
-    const editorForm = document.getElementById('editor-form');
-    const statusBar = document.querySelector('.status-bar');
-    const schemaStatus = document.getElementById('schema-status');
-    const choicesStatus = document.getElementById('choices-status');
-    const dataStatus = document.getElementById('data-status');
-    const lastSaved = document.getElementById('last-saved');
+
+    // const reloadBtn = document.getElementById('reloadBtn');
+    // const noSchemaDiv = document.getElementById('no-schema');
+    // const editorForm = document.getElementById('editor-form');
+    // const statusBar = document.querySelector('.status-bar');
+    // const schemaStatus = document.getElementById('schema-status');
+    // const choicesStatus = document.getElementById('choices-status');
+    // const dataStatus = document.getElementById('data-status');
+    // const lastSaved = document.getElementById('last-saved');
 
     // DEBUG
-  // Debug: Check what data was injected
+    // Debug: Check what data was injected
     console.log('=== FORM.HML LOADED ===');
     console.log('currentSchema:', window.currentSchema ? 'EXISTS' : 'UNDEFINED');
     console.log('customChoices:', window.customChoices ? 'EXISTS' : 'UNDEFINED');
     console.log('initialData:', window.initialData ? 'EXISTS' : 'UNDEFINED');
   
-    // Show alert if no schema
-    if (!window.currentSchema) {
-      console.error('NO SCHEMA INJECTED!');
-      document.body.innerHTML = '<h1 style="color: red; padding: 40px;">Error: No schema data was injected</h1>';
+    if (configBtn) {
+        // Config button handler
+        document.getElementById('configBtn').addEventListener('click', () => {
+          vscode.postMessage({ command: 'openConfig' });
+        });
+    } else {
+      console.error('configBtn element not found!');
     }
 
-    // Event listeners
-    loadDataBtn.addEventListener('click', () => {
-      vscode.postMessage({ command: 'loadData' });
-    });
+    // // Update schema name display
+    // if (window.currentSchema && window.currentSchema.title) {
+    //   document.getElementById('schema-name').textContent = window.currentSchema.title;
+    // } else if (window.currentSchema) {
+    //   document.getElementById('schema-name').textContent = 'Loaded Schema';
+    // } 
+    
+    // // Show alert if no schema
+    // if (!window.currentSchema) {
+    //   console.error('NO SCHEMA INJECTED!');
+    //   document.body.innerHTML = '<h1 style="color: red; padding: 40px;">Error: No schema data was injected</h1>';
+    // }
 
-    saveBtn.addEventListener('click', () => {
-      const data = collectFormData();
-      vscode.postMessage({ command: 'saveJson', data: data });
-      updateLastSaved();
-    });
-
-    exportBtn.addEventListener('click', () => {
-      const data = collectFormData();
-      vscode.postMessage({ command: 'exportJson', data: data });
-    });
-
-    reloadBtn.addEventListener('click', () => {
-      if (currentSchema) {
-        renderForm(currentSchema);
-        showNotification('Form reloaded');
+    if (loadDataBtn) {
+      loadDataBtn.addEventListener('click', () => {
+        console.log('Load Data button clicked');
+        vscode.postMessage({ command: 'loadData' });
+      });
+    }
+    
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        console.log('Save button clicked');
+        const data = collectFormData();
+        vscode.postMessage({ command: 'saveJson', data: data });
+      });
+    }
+    
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        console.log('Export button clicked');
+        const data = collectFormData();
+        vscode.postMessage({ command: 'exportJson', data: data });
+      });
+    }
+    
+     // Update schema name display
+    function updateSchemaDisplay() {
+      const schemaNameEl = document.getElementById('schema-name');
+      if (schemaNameEl && window.currentSchema) {
+        if (window.currentSchema.title) {
+          schemaNameEl.textContent = window.currentSchema.title;
+        } else {
+          schemaNameEl.textContent = 'Loaded Schema';
+        }
       }
-    });
+    }
+    
+    // Initialize when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded, checking for injected data...');
+      updateSchemaDisplay();
+      
+      // Check if we have schema data
+      if (window.currentSchema) {
+        console.log('Schema found, rendering form...');
+        // Your existing renderForm function
+        if (typeof renderForm === 'function') {
+          renderForm(window.currentSchema);
+        }
+      } else {
+        console.log('No schema data injected yet');
+      }
+    });   
 
-    // Message handler from extension
+     // Listen for messages from extension
     window.addEventListener('message', event => {
       const message = event.data;
-      switch (message.command) {
-        case 'dataLoaded':
-          if (currentSchema) {
+      console.log('Message received:', message.command);
+      
+      if (message.command === 'dataLoaded') {
+        if (window.currentSchema) {
+          if (typeof populateFormWithData === 'function') {
             populateFormWithData(message.data);
-            updateDataStatus(true);
-            showNotification('Data file loaded successfully');
           }
-          break;
-        case 'showMessage':
-          showNotification(message.text);
-          break;
-      }
-    });
-
-    // Initialize form if schema is pre-loaded
-    document.addEventListener('DOMContentLoaded', function() {
-      if (currentSchema) {
-        console.log('Schema pre-loaded from configuration');
-        initializeForm();
-      } else {
-        // No schema loaded yet
-        noSchemaDiv.innerHTML = `
-          <h2>No Schema Loaded</h2>
-          <p>The form could not be loaded. Please check your configuration.</p>
-          <button onclick="requestReconfigure()" style="margin-top: 20px;">
-            Reconfigure
-          </button>
-        `;
+        }
       }
     });
 
@@ -567,8 +625,6 @@
       return result;
     }
 
-    // Continue with all other functions...
-    // ... [PASTE ALL YOUR ORIGINAL JAVASCRIPT FUNCTIONS HERE]
     function renderForm(schema) {
       const form = document.getElementById('editor-form');
       const noSchema = document.getElementById('no-schema');

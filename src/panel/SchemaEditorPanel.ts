@@ -9,6 +9,7 @@ export class SchemaEditorPanel {
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
   private _config: EditorConfig;
+  private _extensionUri: vscode.Uri;  
   private _formRenderer: FormRenderer;
   private _fileLoader: FileLoader;
   private _messageHandler: MessageHandler;
@@ -47,96 +48,55 @@ export class SchemaEditorPanel {
 
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, config: EditorConfig) {
     this._panel = panel;
+    this._extensionUri = extensionUri;
     this._config = config;
     this._fileLoader = new FileLoader();
     this._formRenderer = new FormRenderer(extensionUri);
     this._messageHandler = new MessageHandler();
 
-    // Set up panel events
-    this.setupPanelEvents();
-    
-    // Initialize the panel content
     this.initializePanel();
-    
-    // Set up message handlers
     this.setupMessageHandlers();
+    this.setupPanelEvents();
   }
 
-  private setupPanelEvents() {
-    // Handle panel disposal
-    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
 
-    // Handle visibility changes
-    this._panel.onDidChangeViewState(
-      () => {
-        if (this._panel.visible && this._isLoading) {
-          this.refreshPanel();
-        }
-      },
-      null,
-      this._disposables
-    );
+  private setupPanelEvents() {
+    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
   }
 
   private async initializePanel() {
-    this._isLoading = true;
-    
-    console.log('initializePanel called with config:', this._config);
-    
     try {
+      // Show loading message
+      this._panel.webview.html = this.getLoadingHtml();
+      
       // Load schema
-      console.log('Loading schema from:', this._config.schemaPath);
       const schema = await this._fileLoader.loadSchema(this._config.schemaPath);
-      console.log('Schema loaded successfully, properties:', Object.keys(schema.properties || {}));
       
       // Load choices if provided
       let choices = {};
       if (this._config.choicesPath) {
-        console.log('Loading choices from:', this._config.choicesPath);
         try {
           choices = await this._fileLoader.loadChoices(this._config.choicesPath);
-          console.log('Choices loaded successfully, keys:', Object.keys(choices));
         } catch (error) {
           console.warn('Failed to load choices file:', error);
-        }
-      }
-      
-      // Load data if provided
-      let initialData = {};
-      if (this._config.dataPath) {
-        console.log('Loading data from:', this._config.dataPath);
-        try {
-          initialData = await this._fileLoader.loadData(this._config.dataPath);
-          console.log('Data loaded successfully, keys:', Object.keys(initialData));
-        } catch (error) {
-          console.warn('Failed to load initial data:', error);
+          vscode.window.showWarningMessage('Choices file could not be loaded, using schema defaults');
         }
       }
       
       // Render form with loaded data
-      console.log('Calling FormRenderer.renderForm...');
-      this._panel.webview.html = this._formRenderer.renderForm(schema, choices, initialData);
-      console.log('Form rendered and set to webview');
+      this._panel.webview.html = this._formRenderer.renderForm(schema, choices);
       
-      this._isLoading = false;
+      // Update panel title with schema name
+      const schemaTitle = schema.title || 'JSON Editor';
+      this._panel.title = schemaTitle;
       
     } catch (error: any) {
-      console.error('initializePanel error:', error);
-      console.error('Stack:', error.stack);
       this._panel.webview.html = this._formRenderer.renderError(error.message);
       vscode.window.showErrorMessage(`Failed to initialize editor: ${error.message}`);
-      this._isLoading = false;
-    }
-  }
-
-  private refreshPanel() {
-    if (!this._isLoading) {
-      this.initializePanel();
     }
   }
 
   private setupMessageHandlers() {
-    // Handle messages from webview
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
         this._messageHandler.handleMessage(this._panel, message);
@@ -145,48 +105,29 @@ export class SchemaEditorPanel {
       this._disposables
     );
 
-    // Register message handlers
+    // Load data file
     this._messageHandler.on('loadData', async (data, panel) => {
-      try {
-        const loadedData = await this._fileLoader.loadDataFromDialog();
-        if (loadedData) {
-          this._messageHandler.postMessage(panel.webview, 'dataLoaded', loadedData);
-          vscode.window.showInformationMessage('Data loaded successfully');
-        }
-      } catch (error: any) {
-        vscode.window.showErrorMessage(`Failed to load data: ${error.message}`);
+      const loadedData = await this._fileLoader.loadDataFromDialog();
+      if (loadedData) {
+        this._messageHandler.postMessage(panel.webview, 'dataLoaded', loadedData);
+        vscode.window.showInformationMessage('Data loaded successfully');
       }
     });
 
+    // Save to file
     this._messageHandler.on('saveJson', async (data, panel) => {
-      try {
-        await this._fileLoader.saveJsonToFile(data);
-      } catch (error: any) {
-        vscode.window.showErrorMessage(`Failed to save file: ${error.message}`);
-      }
+      await this._fileLoader.saveJsonToFile(data);
     });
 
+    // Export to clipboard
     this._messageHandler.on('exportJson', async (data, panel) => {
-      try {
-        await this._fileLoader.exportToClipboard(data);
-      } catch (error: any) {
-        vscode.window.showErrorMessage(`Failed to export to clipboard: ${error.message}`);
-      }
+      await this._fileLoader.exportToClipboard(data);
     });
 
+    // Open config screen
     this._messageHandler.on('openConfig', async (data, panel) => {
+      // Open config command
       vscode.commands.executeCommand('json-data-editor.openConfig');
-    });
-
-    this._messageHandler.on('showNotification', (data, panel) => {
-      if (data && data.text) {
-        vscode.window.showInformationMessage(data.text);
-      }
-    });
-
-    this._messageHandler.on('reportIssue', (data, panel) => {
-      const errorMessage = data.error || 'Unknown error';
-      vscode.window.showErrorMessage(`Issue reported: ${errorMessage}`);
     });
   }
 
@@ -197,7 +138,7 @@ export class SchemaEditorPanel {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Loading JSON Editor</title>
+        <title>Loading...</title>
         <style>
           body {
             font-family: var(--vscode-font-family);
@@ -208,16 +149,14 @@ export class SchemaEditorPanel {
             background-color: var(--vscode-editor-background);
             color: var(--vscode-foreground);
           }
-          .loading-container {
+          .loading {
             text-align: center;
-            max-width: 400px;
-            padding: 40px;
           }
           .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid var(--vscode-input-border);
-            border-top: 4px solid var(--vscode-progressBar-background);
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--vscode-input-border);
+            border-top: 3px solid var(--vscode-progressBar-background);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
@@ -226,69 +165,23 @@ export class SchemaEditorPanel {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
           }
-          h2 {
-            margin-bottom: 10px;
+          h3 {
+            margin: 0;
             color: var(--vscode-textLink-foreground);
           }
           p {
-            margin: 10px 0;
+            margin: 10px 0 0 0;
             color: var(--vscode-descriptionForeground);
-          }
-          .loading-steps {
-            text-align: left;
-            margin: 20px 0;
-            padding: 0;
-            list-style: none;
-          }
-          .loading-steps li {
-            margin: 10px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          }
-          .loading-steps li::before {
-            content: "⏳";
-            font-size: 18px;
-          }
-          .loading-steps li.loaded::before {
-            content: "✅";
-          }
-          .loading-steps li.error::before {
-            content: "❌";
+            font-size: 13px;
           }
         </style>
       </head>
       <body>
-        <div class="loading-container">
+        <div class="loading">
           <div class="spinner"></div>
-          <h2>Loading JSON Data Editor</h2>
-          <p>Please wait while we load your schema and configuration...</p>
-          
-          <ul class="loading-steps">
-            <li id="step-schema">Loading schema file...</li>
-            <li id="step-choices">Loading choices file...</li>
-            <li id="step-data">Loading initial data...</li>
-            <li id="step-render">Rendering form...</li>
-          </ul>
+          <h3>Loading Form...</h3>
+          <p>Please wait while we load the schema</p>
         </div>
-        
-        <script>
-          // Update loading steps dynamically
-          setTimeout(() => {
-            document.getElementById('step-schema').textContent = 'Schema file loaded ✓';
-            document.getElementById('step-schema').classList.add('loaded');
-          }, 800);
-          
-          setTimeout(() => {
-            document.getElementById('step-choices').textContent = 'Choices file loaded ✓';
-            document.getElementById('step-choices').classList.add('loaded');
-          }, 1200);
-          
-          setTimeout(() => {
-            document.getElementById('step-data').textContent = 'Initial data loaded ✓';
-            document.getElementById('step-data').classList.add('loaded');
-          }, 1600);
-        </script>
       </body>
       </html>
     `;

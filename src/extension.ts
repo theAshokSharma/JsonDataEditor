@@ -6,39 +6,38 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize config manager
   const configManager = new ConfigManager(context);
   
-  // Register command to open configuration
-  const configCommand = vscode.commands.registerCommand(
-    'json-data-editor.openConfig',
-    async () => {
-      const config = await configManager.promptForConfiguration();
-      if (config) {
-        // Open editor after successful configuration
-        SchemaEditorPanel.createOrShow(context.extensionUri, config);
-      }
-    }
-  );
-
-  // Register command to open editor directly (if already configured)
+  // Register command to open editor
   const editorCommand = vscode.commands.registerCommand(
     'json-data-editor.openEditor',
     async () => {
-      const config = configManager.getConfig();
-      if (config) {
-        SchemaEditorPanel.createOrShow(context.extensionUri, config);
+      // Check if we have existing config
+      const existingConfig = configManager.getConfig();
+      
+      if (existingConfig && existingConfig.schemaPath) {
+        // We have config, open editor directly
+        SchemaEditorPanel.createOrShow(context.extensionUri, existingConfig);
       } else {
-        vscode.window.showInformationMessage(
-          'Please configure schema and choices files first',
-          'Configure'
-        ).then(selection => {
-          if (selection === 'Configure') {
-            configManager.promptForConfiguration();
-          }
-        });
+        // No config, show config screen first
+        const config = await configManager.showConfigScreen();
+        if (config) {
+          SchemaEditorPanel.createOrShow(context.extensionUri, config);
+        }
       }
     }
   );
 
-  context.subscriptions.push(configCommand, editorCommand, configManager);
+  // Register command to open config screen
+  const configCommand = vscode.commands.registerCommand(
+    'json-data-editor.openConfig',
+    async () => {
+      const config = await configManager.showConfigScreen();
+      if (config) {
+        SchemaEditorPanel.createOrShow(context.extensionUri, config);
+      }
+    }
+  );
+
+  context.subscriptions.push(editorCommand, configCommand, configManager);
 }
 
 export function deactivate() {}

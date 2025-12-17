@@ -9,15 +9,15 @@ export class FormRenderer {
   }
 
   renderForm(schema: any, choices: any = {}, initialData: any = {}): string {
-    console.log('renderForm called with:');
-    console.log('- Schema keys:', Object.keys(schema || {}));
-    console.log('- Choices keys:', Object.keys(choices || {}));
-    console.log('- InitialData keys:', Object.keys(initialData || {}));
+    // console.log('renderForm called with:');
+    // console.log('- Schema keys:', Object.keys(schema || {}));
+    // console.log('- Choices keys:', Object.keys(choices || {}));
+    // console.log('- InitialData keys:', Object.keys(initialData || {}));
     
     try {
       // First, let's find where the form.html actually is
       const templatePath = this.findFormHtml();
-      console.log('Template path found:', templatePath);
+      // console.log('Template path found:', templatePath);
       
       if (!templatePath || !fs.existsSync(templatePath)) {
         console.error('form.html not found at any expected location');
@@ -25,7 +25,7 @@ export class FormRenderer {
       }
       
       let html = fs.readFileSync(templatePath, 'utf8');
-      console.log('HTML template loaded, length:', html.length);
+      // console.log('HTML template loaded, length:', html.length);
       
       // Check if the HTML has the expected structure
       if (!html.includes('<!DOCTYPE html>')) {
@@ -34,7 +34,7 @@ export class FormRenderer {
       
       // Prepare data for injection
       const dataScript = this.createDataScript(schema, choices, initialData);
-      console.log('Data script created, length:', dataScript.length);
+      // console.log('Data script created, length:', dataScript.length);
       
       // Inject data script
       if (html.includes('</head>')) {
@@ -54,9 +54,9 @@ export class FormRenderer {
       return html;
       
     } catch (error: any) {
-      console.error('Error rendering form:', error);
-      console.error('Stack:', error.stack);
-      return this.renderError(`Failed to render form: ${error.message}`);
+        console.error('Error rendering form:', error);
+        console.error('Stack:', error.stack);
+        return this.renderError(`Failed to render form: ${error.message}`);
     }
   }
 
@@ -120,9 +120,9 @@ export class FormRenderer {
           )};
           
           // Log for debugging
-          console.log('Schema loaded:', window.currentSchema && Object.keys(window.currentSchema).length > 0);
-          console.log('Choices loaded:', window.customChoices && Object.keys(window.customChoices).length > 0);
-          console.log('Initial data loaded:', window.initialData && Object.keys(window.initialData).length > 0);
+          // console.log('Schema loaded:', window.currentSchema && Object.keys(window.currentSchema).length > 0);
+          // console.log('Choices loaded:', window.customChoices && Object.keys(window.customChoices).length > 0);
+          // console.log('Initial data loaded:', window.initialData && Object.keys(window.initialData).length > 0);
         } catch (error) {
           console.error('Error parsing injected data:', error);
         }

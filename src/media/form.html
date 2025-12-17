@@ -438,11 +438,11 @@
     const vscode = acquireVsCodeApi();
 
       // Debug: Check if elements exist
-    console.log('Debug - Checking elements:');
-    console.log('configBtn exists:', document.getElementById('configBtn') !== null);
-    console.log('loadDataBtn exists:', document.getElementById('loadDataBtn') !== null);
-    console.log('saveBtn exists:', document.getElementById('saveBtn') !== null);
-    console.log('exportBtn exists:', document.getElementById('exportBtn') !== null);
+    // console.log('Debug - Checking elements:');
+    // console.log('configBtn exists:', document.getElementById('configBtn') !== null);
+    // console.log('loadDataBtn exists:', document.getElementById('loadDataBtn') !== null);
+    // console.log('saveBtn exists:', document.getElementById('saveBtn') !== null);
+    // console.log('exportBtn exists:', document.getElementById('exportBtn') !== null);
     
 
 
@@ -463,10 +463,10 @@
 
     // DEBUG
     // Debug: Check what data was injected
-    console.log('=== FORM.HML LOADED ===');
-    console.log('currentSchema:', window.currentSchema ? 'EXISTS' : 'UNDEFINED');
-    console.log('customChoices:', window.customChoices ? 'EXISTS' : 'UNDEFINED');
-    console.log('initialData:', window.initialData ? 'EXISTS' : 'UNDEFINED');
+    // console.log('=== FORM.HTML LOADED ===');
+    // console.log('currentSchema:', window.currentSchema ? 'EXISTS' : 'UNDEFINED');
+    // console.log('customChoices:', window.customChoices ? 'EXISTS' : 'UNDEFINED');
+    // console.log('initialData:', window.initialData ? 'EXISTS' : 'UNDEFINED');
   
     if (configBtn) {
         // Config button handler
@@ -492,14 +492,14 @@
 
     if (loadDataBtn) {
       loadDataBtn.addEventListener('click', () => {
-        console.log('Load Data button clicked');
+        // console.log('Load Data button clicked');
         vscode.postMessage({ command: 'loadData' });
       });
     }
     
     if (saveBtn) {
       saveBtn.addEventListener('click', () => {
-        console.log('Save button clicked');
+        // console.log('Save button clicked');
         const data = collectFormData();
         vscode.postMessage({ command: 'saveJson', data: data });
       });
@@ -507,7 +507,7 @@
     
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
-        console.log('Export button clicked');
+        // console.log('Export button clicked');
         const data = collectFormData();
         vscode.postMessage({ command: 'exportJson', data: data });
       });
@@ -527,12 +527,12 @@
     
     // Initialize when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('DOM loaded, checking for injected data...');
+      // console.log('DOM loaded, checking for injected data...');
       updateSchemaDisplay();
       
       // Check if we have schema data
       if (window.currentSchema) {
-        console.log('Schema found, rendering form...');
+        // console.log('Schema found, rendering form...');
         // Your existing renderForm function
         if (typeof renderForm === 'function') {
           renderForm(window.currentSchema);
@@ -545,7 +545,7 @@
      // Listen for messages from extension
     window.addEventListener('message', event => {
       const message = event.data;
-      console.log('Message received:', message.command);
+      // console.log('Message received:', message.command);
       
       if (message.command === 'dataLoaded') {
         if (window.currentSchema) {
@@ -1032,13 +1032,13 @@
           // Fix: Better comparison that handles strings
           const conditionMet = String(currentValue).trim() === String(triggerValue).trim();
           
-          console.log('Checking condition:', {
-            triggerField,
-            currentValue,
-            triggerValue,
-            conditionMet,
-            affectedFields
-          });
+          // console.log('Checking condition:', {
+          //   triggerField,
+          //   currentValue,
+          //   triggerValue,
+          //   conditionMet,
+          //   affectedFields
+          // });
 
           affectedFields.forEach(fieldKey => {
             const fieldGroup = document.querySelector(`[data-field-path="${fieldKey}"]`);
@@ -1048,7 +1048,7 @@
             }
             
             if (conditionMet) {
-              console.log('Disabling field:', fieldKey);            
+              // console.log('Disabling field:', fieldKey);            
               fieldGroup.classList.add('disabled');
               
               if (!fieldGroup.querySelector('.disabled-indicator')) {
@@ -1060,7 +1060,7 @@
               
               setDisabledFieldValue(fieldKey, fieldGroup);
             } else {
-              console.log('Enabling field:', fieldKey);              
+              // console.log('Enabling field:', fieldKey);              
               fieldGroup.classList.remove('disabled');
               
               const indicator = fieldGroup.querySelector('.disabled-indicator');
@@ -1076,37 +1076,37 @@
     function getFieldValue(fieldPath) {
       let input = document.querySelector(`select[data-path="${fieldPath}"]`);
       if (input) {
-        console.log('Found select for', fieldPath, 'value:', input.value);
+        // console.log('Found select for', fieldPath, 'value:', input.value);
         return input.value;
       }
       
       input = document.querySelector(`input[type="text"][data-path="${fieldPath}"], input[type="email"][data-path="${fieldPath}"]`);
       if (input) {
-        console.log('Found text input for', fieldPath, 'value:', input.value);   
+        // console.log('Found text input for', fieldPath, 'value:', input.value);   
         return input.value;
       }
       
       input = document.querySelector(`input[type="number"][data-path="${fieldPath}"]`);
       if (input) {
-        console.log('Found number input for', fieldPath, 'value:', input.value);
+        // console.log('Found number input for', fieldPath, 'value:', input.value);
         return input.value ? Number(input.value) : null;
       }
       
       input = document.querySelector(`input[type="checkbox"][data-path="${fieldPath}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
       if (input) {
-        console.log('Found checkbox for', fieldPath, 'value:', input.checked);
+        // console.log('Found checkbox for', fieldPath, 'value:', input.checked);
         return input.checked;
       }
       
       const naCheckbox = document.getElementById(fieldPath + '_na');
       if (naCheckbox && naCheckbox.checked) {
-        console.log('Found NA checkbox for', fieldPath, 'value:', naCheckbox.value);
+        // console.log('Found NA checkbox for', fieldPath, 'value:', naCheckbox.value);
         return naCheckbox.value;
       }
       const multiCheckboxes = document.querySelectorAll(`[data-path="${fieldPath}"].multi-select-checkbox:checked`);
       if (multiCheckboxes.length > 0) {
         const values = Array.from(multiCheckboxes).map(cb => cb.value);
-        console.log('Found multi-select for', fieldPath, 'value:', values);
+        // console.log('Found multi-select for', fieldPath, 'value:', values);
         return values;
       }
 
@@ -1371,7 +1371,7 @@
         if (optionExists) {
           input.value = value;
           input.dispatchEvent(new Event('change'));
-          console.log(`Populated select ${pathStr} with:`, value);
+          // console.log(`Populated select ${pathStr} with:`, value);
         } else {
           console.warn(`Value "${value}" not found in dropdown options for ${pathStr}`);
         }
@@ -1383,7 +1383,7 @@
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('change'));
-        console.log(`Populated text ${pathStr} with:`, value);
+        // console.log(`Populated text ${pathStr} with:`, value);
         return;
       }
       
@@ -1392,7 +1392,7 @@
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('change'));
-        console.log(`Populated number ${pathStr} with:`, value);
+        // console.log(`Populated number ${pathStr} with:`, value);
         return;
       }
       
@@ -1401,7 +1401,7 @@
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('change'));
-        console.log(`Populated date ${pathStr} with:`, value);
+        // console.log(`Populated date ${pathStr} with:`, value);
         return;
       }
       
@@ -1410,7 +1410,7 @@
       if (input) {
         input.checked = value === true;
         input.dispatchEvent(new Event('change'));
-        console.log(`Populated checkbox ${pathStr} with:`, value);
+        // console.log(`Populated checkbox ${pathStr} with:`, value);
         return;
       }
       
@@ -1423,7 +1423,7 @@
           input.value = value;
         }
         input.dispatchEvent(new Event('change'));
-        console.log(`Populated textarea ${pathStr} with:`, value);
+        // console.log(`Populated textarea ${pathStr} with:`, value);
         return;
       }
       
@@ -1431,7 +1431,7 @@
     }
 
     function populateArrayField(pathStr, values) {
-      console.log(`Populating array field: ${pathStr} with values:`, values);
+      // console.log(`Populating array field: ${pathStr} with values:`, values);
       
       // Helper function to update multi-select display
       function updateMultiSelectDisplayLocal(dropdownId, path) {
@@ -1483,7 +1483,7 @@
       }
       
       if (container) {
-        console.log(`Found container for ${pathStr}:`, container.id);
+        // console.log(`Found container for ${pathStr}:`, container.id);
         
         // Get all checkboxes for this path - FIXED SELECTOR
         const allCheckboxes = document.querySelectorAll(`[data-path="${pathStr}"].multi-select-checkbox`);
@@ -1494,7 +1494,7 @@
           return;
         }
         
-        console.log(`Found ${allCheckboxes.length} checkboxes for ${pathStr}`);
+        // console.log(`Found ${allCheckboxes.length} checkboxes for ${pathStr}`);
         
         // Uncheck all checkboxes first
         allCheckboxes.forEach(cb => {
@@ -1510,19 +1510,19 @@
         
         // Process the values based on their type
         if (typeof values === 'string') {
-          console.log(`Processing string value: "${values}"`);
+          // console.log(`Processing string value: "${values}"`);
           
           // Handle N/A value
           if (naCheckbox && naCheckbox.value === values) {
             naCheckbox.checked = true;
-            console.log(`Set NA checkbox for ${pathStr}`);
+            // console.log(`Set NA checkbox for ${pathStr}`);
           } 
           // Handle other exclusive options
           else if (exclusiveOptions.includes(values)) {
             const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
             if (matchingCheckbox) {
               matchingCheckbox.checked = true;
-              console.log(`Set exclusive option: ${values}`);
+              // console.log(`Set exclusive option: ${values}`);
             }
           }
           // Handle regular single value
@@ -1530,14 +1530,14 @@
             const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
             if (matchingCheckbox) {
               matchingCheckbox.checked = true;
-              console.log(`Set regular value: ${values}`);
+              // console.log(`Set regular value: ${values}`);
             } else {
               console.warn(`No checkbox found for value: "${values}"`);
             }
           }
         } 
         else if (Array.isArray(values)) {
-          console.log(`Processing array with ${values.length} values`);
+          // console.log(`Processing array with ${values.length} values`);
           
           if (values.length === 0) {
             console.log(`Empty array for ${pathStr}, leaving all unchecked`);
@@ -1548,7 +1548,7 @@
             if (hasExclusiveOption) {
               // If exclusive option exists, only check that one
               const exclusiveValue = values.find(val => exclusiveOptions.includes(val));
-              console.log(`Found exclusive value: ${exclusiveValue}`);
+              // console.log(`Found exclusive value: ${exclusiveValue}`);
               
               if (exclusiveValue === 'N/A' && naCheckbox) {
                 naCheckbox.checked = true;
@@ -1564,7 +1564,7 @@
                 const checkbox = Array.from(allCheckboxes).find(cb => cb.value === val);
                 if (checkbox) {
                   checkbox.checked = true;
-                  console.log(`Checked value: ${val}`);
+                  // console.log(`Checked value: ${val}`);
                 } else {
                   console.warn(`Checkbox not found for value: "${val}"`);
                 }
@@ -1587,12 +1587,12 @@
         const inputs = document.querySelectorAll(`[data-path="${pathStr}"]`);
         
         if (inputs.length > 0) {
-          console.log(`Found ${inputs.length} alternative inputs for ${pathStr}`);
+          // console.log(`Found ${inputs.length} alternative inputs for ${pathStr}`);
           
           // Try select input first
           const selectInput = document.querySelector(`select[data-path="${pathStr}"]`);
           if (selectInput) {
-            console.log(`Found select input, setting `);
+            // console.log(`Found select input, setting `);
             if (typeof values === 'string') {
               selectInput.value = values;
             } else if (Array.isArray(values) && values.length > 0) {
@@ -1605,7 +1605,7 @@
           // Try text input
           const textInput = document.querySelector(`input[type="text"][data-path="${pathStr}"], textarea[data-path="${pathStr}"]`);
           if (textInput) {
-            console.log(`Found text input, setting value`);
+            // console.log(`Found text input, setting value`);
             if (Array.isArray(values)) {
               textInput.value = values.join(', ');
             } else {

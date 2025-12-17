@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON Data Editor</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: var(--vscode-font-family);
+      color: var(--vscode-foreground);
+      background-color: var(--vscode-editor-background);
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 2px;
+      font-size: 13px;
+    }
+    button:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+    .form-group {
+      margin-bottom: 15px;
+      padding: 15px;
+      background-color: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .form-group .description {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 8px;
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 6px 8px;
+      background-color: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 2px;
+      font-family: var(--vscode-font-family);
+      font-size: 13px;
+    }
+    input:focus,
+    textarea:focus,
+    select:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+    }
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .checkbox-item input[type="checkbox"] {
+      width: auto;
+    }
+    .checkbox-item input[type="radio"] {
+      width: auto;
+    }
+    .na-option {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--vscode-input-border);
+    }
+    .na-option label {
+      font-style: italic;
+      color: var(--vscode-descriptionForeground);
+    }
+    .multi-select-container {
+      position: relative;
+      width: 100%;
+    }
+    .multi-select-trigger {
+      width: 100%;
+      padding: 6px 8px;
+      background-color: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 2px;
+      font-family: var(--vscode-font-family);
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 28px;
+    }
+    .multi-select-trigger:hover {
+      background-color: var(--vscode-dropdown-background);
+    }
+    .multi-select-trigger::after {
+      content: '▼';
+      font-size: 10px;
+      margin-left: 8px;
+    }
+    .multi-select-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background-color: var(--vscode-dropdown-background);
+      border: 1px solid var(--vscode-input-border);
+      border-top: none;
+      max-height: 300px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    .multi-select-dropdown.open {
+      display: block;
+    }
+    .multi-select-option {
+      padding: 6px 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .multi-select-option:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+    .multi-select-option input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+    }
+    .multi-select-option.na-option {
+      border-top: 1px solid var(--vscode-input-border);
+      font-style: italic;
+      color: var(--vscode-descriptionForeground);
+    }
+    .multi-select-selected {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      min-height: 20px;
+    }
+    .multi-select-tag {
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .multi-select-placeholder {
+      color: var(--vscode-input-placeholderForeground);
+    }
+    .form-group.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .form-group.disabled input,
+    .form-group.disabled select,
+    .form-group.disabled textarea,
+    .form-group.disabled .multi-select-container {
+      background-color: var(--vscode-input-background);
+      cursor: not-allowed;
+    }
+    .disabled-indicator {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+      margin-top: 4px;
+    }
+    .required::after {
+      content: " *";
+      color: var(--vscode-errorForeground);
+    }
+    .no-schema {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--vscode-descriptionForeground);
+    }
+    #editor-form {
+      display: none;
+    }
+    #editor-form.active {
+      display: block;
+    }
+    .nested-object {
+      margin-left: 0;
+      padding: 15px;
+      border-left: 3px solid var(--vscode-textLink-foreground);
+      background-color: var(--vscode-editor-background);
+      margin-top: 10px;
+    }
+    .nested-object-header {
+      font-weight: 600;
+      font-size: 15px;
+      margin-bottom: 15px;
+      color: var(--vscode-textLink-foreground);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .nested-object-header::before {
+      content: '▼';
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+    .nested-object-header.collapsed::before {
+      transform: rotate(-90deg);
+    }
+    .nested-object-content {
+      display: block;
+    }
+    .nested-object-content.collapsed {
+      display: none;
+    }
+    .array-container {
+      border: 1px solid var(--vscode-input-border);
+      padding: 10px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+    .array-item {
+      margin-bottom: 15px;
+      padding: 15px;
+      background-color: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      position: relative;
+    }
+    .array-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--vscode-input-border);
+    }
+    .array-item-title {
+      font-weight: 600;
+      color: var(--vscode-textLink-foreground);
+    }
+    .array-controls {
+      display: flex;
+      gap: 5px;
+      margin-top: 10px;
+    }
+    .array-controls button {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    .remove-item-btn {
+      background-color: var(--vscode-errorForeground);
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+    .remove-item-btn:hover {
+      opacity: 0.8;
+    }
+    .error-message {
+      color: var(--vscode-errorForeground);
+      font-size: 12px;
+      margin-top: 4px;
+      display: none;
+    }
+    .has-error {
+      border-color: var(--vscode-errorForeground) !important;
+    }
+    .validation-error {
+      color: var(--vscode-errorForeground);
+      background-color: var(--vscode-inputValidation-errorBackground);
+      border: 1px solid var(--vscode-inputValidation-errorBorder);
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      display: none;
+    }
+    input[type="date"] {
+      width: 100%;
+      padding: 6px 8px;
+      background-color: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 2px;
+      font-family: var(--vscode-font-family);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.5);
+      cursor: pointer;
+    }
+    input[type="date"]:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+    }
+    .status-bar {
+      margin-top: 20px;
+      padding: 10px;
+      background-color: var(--vscode-statusBar-background);
+      color: var(--vscode-statusBar-foreground);
+      border-radius: 4px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-info {
+      display: flex;
+      gap: 15px;
+    }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .status-icon {
+      font-size: 14px;
+    }
+    .loading {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--vscode-progressBar-background);
+      border-top: 2px solid transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <button id="loadDataBtn">Load Data File</button>
+      <button id="saveBtn">Save to File</button>
+      <button id="exportBtn">Copy to Clipboard</button>
+      <button id="reloadBtn" style="margin-left: auto;">Reload Form</button>
+    </div>
+    
+    <div id="no-schema" class="no-schema">
+      <h2>Loading Form...</h2>
+      <p>Please wait while the form loads</p>
+      <div class="loading" style="margin: 20px auto;"></div>
+    </div>
+    
+    <div id="editor-form"></div>
+
+    <div class="status-bar" style="display: none;">
+      <div class="status-info">
+        <div class="status-item">
+          <span class="status-icon">📋</span>
+          <span id="schema-status">Schema: Not loaded</span>
+        </div>
+        <div class="status-item">
+          <span class="status-icon">📝</span>
+          <span id="choices-status">Choices: Not loaded</span>
+        </div>
+        <div class="status-item">
+          <span class="status-icon">💾</span>
+          <span id="data-status">Data: Not loaded</span>
+        </div>
+      </div>
+      <div id="last-saved"></div>
+    </div>
+  </div>
+
+  <script>
+    // Global variables that will be injected by FormRenderer
+    let currentSchema = window.currentSchema || null;
+    let customChoices = window.customChoices || {};
+    let initialData = window.initialData || {};
+    let definitions = window.definitions || {};
+    let conditionalRules = window.conditionalRules || {};
+    let formData = {};
+
+    // Initialize VS Code API
+    const vscode = acquireVsCodeApi();
+
+    // DOM elements
+    const loadDataBtn = document.getElementById('loadDataBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const reloadBtn = document.getElementById('reloadBtn');
+    const noSchemaDiv = document.getElementById('no-schema');
+    const editorForm = document.getElementById('editor-form');
+    const statusBar = document.querySelector('.status-bar');
+    const schemaStatus = document.getElementById('schema-status');
+    const choicesStatus = document.getElementById('choices-status');
+    const dataStatus = document.getElementById('data-status');
+    const lastSaved = document.getElementById('last-saved');
+
+    // DEBUG
+  // Debug: Check what data was injected
+    console.log('=== FORM.HML LOADED ===');
+    console.log('currentSchema:', window.currentSchema ? 'EXISTS' : 'UNDEFINED');
+    console.log('customChoices:', window.customChoices ? 'EXISTS' : 'UNDEFINED');
+    console.log('initialData:', window.initialData ? 'EXISTS' : 'UNDEFINED');
+  
+    // Show alert if no schema
+    if (!window.currentSchema) {
+      console.error('NO SCHEMA INJECTED!');
+      document.body.innerHTML = '<h1 style="color: red; padding: 40px;">Error: No schema data was injected</h1>';
+    }
+
+    // Event listeners
+    loadDataBtn.addEventListener('click', () => {
+      vscode.postMessage({ command: 'loadData' });
+    });
+
+    saveBtn.addEventListener('click', () => {
+      const data = collectFormData();
+      vscode.postMessage({ command: 'saveJson', data: data });
+      updateLastSaved();
+    });
+
+    exportBtn.addEventListener('click', () => {
+      const data = collectFormData();
+      vscode.postMessage({ command: 'exportJson', data: data });
+    });
+
+    reloadBtn.addEventListener('click', () => {
+      if (currentSchema) {
+        renderForm(currentSchema);
+        showNotification('Form reloaded');
+      }
+    });
+
+    // Message handler from extension
+    window.addEventListener('message', event => {
+      const message = event.data;
+      switch (message.command) {
+        case 'dataLoaded':
+          if (currentSchema) {
+            populateFormWithData(message.data);
+            updateDataStatus(true);
+            showNotification('Data file loaded successfully');
+          }
+          break;
+        case 'showMessage':
+          showNotification(message.text);
+          break;
+      }
+    });
+
+    // Initialize form if schema is pre-loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      if (currentSchema) {
+        console.log('Schema pre-loaded from configuration');
+        initializeForm();
+      } else {
+        // No schema loaded yet
+        noSchemaDiv.innerHTML = `
+          <h2>No Schema Loaded</h2>
+          <p>The form could not be loaded. Please check your configuration.</p>
+          <button onclick="requestReconfigure()" style="margin-top: 20px;">
+            Reconfigure
+          </button>
+        `;
+      }
+    });
+
+    function requestReconfigure() {
+      vscode.postMessage({ command: 'openConfig' });
+    }
+
+    function initializeForm() {
+      renderForm(currentSchema);
+      
+      // Update status bar
+      updateSchemaStatus(true);
+      updateChoicesStatus(Object.keys(customChoices).length > 0);
+      updateDataStatus(Object.keys(initialData).length > 0);
+      statusBar.style.display = 'flex';
+      
+      // FIX: Add null check
+      if (statusBar) {
+        statusBar.style.display = 'flex';
+      } else {
+        console.error('statusBar element not found');
+      }
+
+      // Hide loading message
+      noSchemaDiv.style.display = 'none';
+      editorForm.classList.add('active');
+      
+      // Populate with initial data if available
+      if (Object.keys(initialData).length > 0) {
+        setTimeout(() => {
+          populateFormWithData(initialData);
+          showNotification('Pre-loaded data applied');
+        }, 300);
+      }
+    }
+
+    function updateSchemaStatus(loaded) {
+      schemaStatus.textContent = `Schema: ${loaded ? 'Loaded' : 'Not loaded'}`;
+      schemaStatus.style.color = loaded ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)';
+    }
+
+    function updateChoicesStatus(loaded) {
+      choicesStatus.textContent = `Choices: ${loaded ? 'Loaded' : 'Not loaded'}`;
+      choicesStatus.style.color = loaded ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)';
+    }
+
+    function updateDataStatus(loaded) {
+      dataStatus.textContent = `Data: ${loaded ? 'Loaded' : 'Not loaded'}`;
+      dataStatus.style.color = loaded ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)';
+    }
+
+    function updateLastSaved() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      lastSaved.textContent = `Last saved: ${timeString}`;
+    }
+
+    function showNotification(message) {
+      vscode.postMessage({ command: 'showNotification', text: message });
+    }
+
+    function resolveRef(ref) {
+      if (!ref || !ref.startsWith('#/')) return null;
+      const path = ref.substring(2).split('/');
+      let result = currentSchema;
+      for (const key of path) {
+        result = result[key];
+        if (!result) return null;
+      }
+      return result;
+    }
+
+    // Continue with all other functions...
+    // ... [PASTE ALL YOUR ORIGINAL JAVASCRIPT FUNCTIONS HERE]
+    function renderForm(schema) {
+      const form = document.getElementById('editor-form');
+      const noSchema = document.getElementById('no-schema');
+      
+      // Add null checks
+      if (!form) {
+        console.error('editor-form element not found');
+        return;
+      }
+      
+      if (!noSchema) {
+        console.error('no-schema element not found');
+        return;
+      } 
+
+      form.innerHTML = '';
+      form.classList.add('active');
+      noSchema.style.display = 'none';
+
+      // Also add null checks for these buttons
+      const saveBtn = document.getElementById('saveBtn');
+      const loadChoicesBtn = document.getElementById('loadChoicesBtn');
+      const loadDataBtn = document.getElementById('loadDataBtn');
+      const exportBtn = document.getElementById('exportBtn');
+      
+      if (saveBtn) saveBtn.style.display = 'inline-block';
+      if (loadChoicesBtn) loadChoicesBtn.style.display = 'inline-block';
+      if (loadDataBtn) loadDataBtn.style.display = 'inline-block';
+      if (exportBtn) exportBtn.style.display = 'inline-block';
+
+      const properties = schema.properties || {};
+      const required = schema.required || [];
+      
+
+      for (const [key, prop] of Object.entries(properties)) {
+        const isRequired = required.includes(key);
+        const fieldHtml = createField(key, prop, isRequired, [key]);
+        const div = document.createElement('div');
+        div.innerHTML = fieldHtml;
+        form.appendChild(div.firstElementChild);
+      }
+
+      attachEventListeners();
+    }
+      
+    function createField(key, prop, isRequired, path) {
+      if (prop.$ref) {
+          prop = resolveRef(prop.$ref);
+          if (!prop) return '';
+      }
+
+      const type = prop.type;
+      const title = prop.title || key;
+      const description = prop.description || '';
+      const pathStr = path.join('.');
+      
+      if (type === 'object' && prop.properties) {
+          return createNestedObject(key, prop, isRequired, path);
+      }
+      
+      if (type === 'array') {
+          const items = prop.items;
+          if (items && (items.type === 'object' || items.$ref)) {
+          return createArrayOfObjects(key, prop, isRequired, path);
+          }
+      }
+
+      let enumValues = [];
+      let responseType = null;
+      let hasNAOption = false;
+      let naValue = null;
+      
+      const choiceConfig = customChoices[key] || customChoices[pathStr];
+      
+      if (choiceConfig && typeof choiceConfig === 'object' && !Array.isArray(choiceConfig)) {
+          let rawValues = choiceConfig.values || [];
+          
+          enumValues = [];
+          rawValues.forEach(val => {
+          if (typeof val === 'string' && val.includes('-')) {
+              const rangeMatch = val.match(/^(\d+)-(\d+)$/);
+              if (rangeMatch) {
+              const start = parseInt(rangeMatch[1]);
+              const end = parseInt(rangeMatch[2]);
+              if (start <= end) {
+                  for (let i = start; i <= end; i++) {
+                  enumValues.push(i);
+                  }
+              }
+              } else {
+              enumValues.push(val);
+              }
+          } else {
+              enumValues.push(val);
+          }
+          });
+          
+          responseType = choiceConfig.response_type || null;
+          naValue = choiceConfig.na || null;
+          hasNAOption = naValue !== null;
+      } else if (Array.isArray(choiceConfig)) {
+          enumValues = choiceConfig;
+          responseType = type === 'array' ? 'multi-select' : 'single-select';
+      } else {
+          enumValues = prop.enum || [];
+          responseType = type === 'array' ? 'multi-select' : 'single-select';
+      }
+      
+      let inputHtml = '';
+
+      if (enumValues.length > 0) {
+          if (responseType === 'multi-select') {
+          const dropdownId = 'multiselect_' + pathStr.replace(/\./g, '_');
+          inputHtml = `
+              <div class="multi-select-container" id="${dropdownId}">
+              <div class="multi-select-trigger" onclick="toggleMultiSelectDropdown('${dropdownId}')" tabindex="0">
+                  <div class="multi-select-selected" id="${dropdownId}_selected">
+                  <span class="multi-select-placeholder">-- Select --</span>
+                  </div>
+              </div>
+              <div class="multi-select-dropdown" id="${dropdownId}_dropdown">
+          `;
+          
+          enumValues.forEach((val, idx) => {
+              inputHtml += `
+              <div class="multi-select-option">
+                  <input type="checkbox" 
+                      id="${pathStr}_${idx}" 
+                      value="${val}" 
+                      data-path="${pathStr}"
+                      data-dropdown="${dropdownId}"
+                      class="multi-select-checkbox"
+                      onchange="handleMultiSelectChange('${pathStr}', '${dropdownId}')">
+                  <label for="${pathStr}_${idx}">${val}</label>
+              </div>
+              `;
+          });
+          
+          if (hasNAOption) {
+              inputHtml += `
+              <div class="multi-select-option na-option">
+                  <input type="checkbox" 
+                      id="${pathStr}_na" 
+                      value="${naValue}" 
+                      data-path="${pathStr}"
+                      data-dropdown="${dropdownId}"
+                      class="na-checkbox"
+                      onchange="handleNAChange('${pathStr}', '${dropdownId}')">
+                  <label for="${pathStr}_na">${naValue} (exclusive)</label>
+              </div>
+              `;
+          }
+          
+          inputHtml += `
+              </div>
+              </div>
+          `;
+          } else if (responseType === 'single-select') {
+          inputHtml = `<select name="${pathStr}" id="${pathStr}" data-path="${pathStr}">
+              <option value="">-- Select --</option>
+              ${enumValues.map(val => `<option value="${val}">${val}</option>`).join('')}`;
+          
+          if (hasNAOption) {
+              inputHtml += `<option value="${naValue}">${naValue}</option>`;
+          }
+          
+          inputHtml += `</select>`;
+          }
+      } else {
+          switch (type) {
+          case 'string':
+              if (prop.format === 'date') {
+              const minDate = prop.minimum || '1930-01-01';
+              const maxDate = prop.maximum || new Date().toISOString().split('T')[0];
+              inputHtml = `<input type="date" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" min="${minDate}" max="${maxDate}" ${isRequired ? 'required' : ''}>`;              
+              } else if (prop.format === 'email') {
+              inputHtml = `<input type="email" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+              } else if (prop.maxLength && prop.maxLength > 100) {
+              inputHtml = `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}></textarea>`;
+              } else {
+              inputHtml = `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+              }
+              break;
+          case 'integer':
+          case 'number':
+              inputHtml = `<input type="number" name="${pathStr}" id="${pathStr}" data-path="${pathStr}"
+              ${prop.minimum !== undefined ? `min="${prop.minimum}"` : ''}
+              ${prop.maximum !== undefined ? `max="${prop.maximum}"` : ''}
+              ${isRequired ? 'required' : ''}>`;
+              break;
+          case 'boolean':
+              inputHtml = `<input type="checkbox" name="${pathStr}" id="${pathStr}" data-path="${pathStr}">`;
+              break;
+          case 'array':
+              inputHtml = `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" placeholder="Enter comma-separated values"></textarea>`;
+              break;
+          default:
+              inputHtml = `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+          }
+      }
+
+      return `
+          <div class="form-group" data-field-path="${pathStr}">
+          <label class="${isRequired ? 'required' : ''}">${title}</label>
+          ${description ? `<div class="description">${description}</div>` : ''}
+          ${inputHtml}
+          </div>
+      `;
+    }
+
+    function createNestedObject(key, prop, isRequired, path) {
+      const title = prop.title || key;
+      const description = prop.description || '';
+      const pathStr = path.join('.');
+      const properties = prop.properties || {};
+      const required = prop.required || [];
+      
+      let fieldsHtml = '';
+      for (const [subKey, subProp] of Object.entries(properties)) {
+          const isSubRequired = required.includes(subKey);
+          fieldsHtml += createField(subKey, subProp, isSubRequired, [...path, subKey]);
+      }
+
+      return `
+          <div class="form-group" data-field-path="${pathStr}">
+          <div class="nested-object">
+              <div class="nested-object-header" onclick="toggleNested(this)">
+              <span>${title}</span>
+              ${isRequired ? '<span style="color: var(--vscode-errorForeground)">*</span>' : ''}
+              </div>
+              ${description ? `<div class="description">${description}</div>` : ''}
+              <div class="nested-object-content">
+              ${fieldsHtml}
+              </div>
+          </div>
+          </div>
+      `;
+    }
+
+    function createArrayOfObjects(key, prop, isRequired, path) {
+      const title = prop.title || key;
+      const description = prop.description || '';
+      const pathStr = path.join('.');
+      
+      return `
+        <div class="form-group" data-field-path="${pathStr}">
+          <label class="${isRequired ? 'required' : ''}">${title}</label>
+          ${description ? `<div class="description">${description}</div>` : ''}
+          <div class="array-container" id="array_${pathStr}" data-path="${pathStr}">
+            <div class="array-controls">
+              <button onclick="addArrayItem('${pathStr}', ${JSON.stringify(prop.items).replace(/"/g, '&quot;')})">Add Item</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    
+    window.toggleNested = function(header) {
+      header.classList.toggle('collapsed');
+      header.nextElementSibling.nextElementSibling.classList.toggle('collapsed');
+    };
+
+    window.addArrayItem = function(arrayPath, itemSchema) {
+      itemSchema = typeof itemSchema === 'string' ? JSON.parse(itemSchema.replace(/&quot;/g, '"')) : itemSchema;
+      
+      if (itemSchema.$ref) {
+        itemSchema = resolveRef(itemSchema.$ref);
+      }
+      
+      const container = document.getElementById('array_' + arrayPath);
+      const items = container.querySelectorAll('.array-item');
+      const index = items.length;
+      
+      const properties = itemSchema.properties || {};
+      const required = itemSchema.required || [];
+      
+      let fieldsHtml = '';
+      for (const [subKey, subProp] of Object.entries(properties)) {
+        const isSubRequired = required.includes(subKey);
+        fieldsHtml += createField(subKey, subProp, isSubRequired, [...arrayPath.split('.'), index, subKey]);
+      }
+      
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'array-item';
+      itemDiv.innerHTML = `
+        <div class="array-item-header">
+          <span class="array-item-title">Item ${index + 1}</span>
+          <button class="remove-item-btn" onclick="removeArrayItem(this)">Remove</button>
+        </div>
+        ${fieldsHtml}
+      `;
+      
+      container.insertBefore(itemDiv, container.querySelector('.array-controls'));
+      attachEventListeners();
+    };
+
+    window.removeArrayItem = function(btn) {
+      const item = btn.closest('.array-item');
+      item.remove();
+      const container = item.parentElement;
+      const items = container.querySelectorAll('.array-item');
+      items.forEach((item, idx) => {
+        item.querySelector('.array-item-title').textContent = 'Item ' + (idx + 1);
+      });
+    };
+
+    window.handleMultiSelectChange = function(path, dropdownId) {
+      const changedCheckbox = event.target;
+      const changedValue = changedCheckbox.value;
+      
+      const exclusiveOptions = ['Unknown/Unsure', 'None of the listed options', 'N/A'];
+      
+      if (exclusiveOptions.includes(changedValue) && changedCheckbox.checked) {
+        const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`);
+        allCheckboxes.forEach(cb => {
+          if (cb !== changedCheckbox) {
+            cb.checked = false;
+          }
+        });
+      } else if (changedCheckbox.checked) {
+        const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`);
+        allCheckboxes.forEach(cb => {
+          if (exclusiveOptions.includes(cb.value)) {
+            cb.checked = false;
+          }
+        });
+      }
+      
+      updateMultiSelectDisplay(dropdownId, path);
+    };
+
+    window.handleNAChange = function(path, dropdownId) {
+      const naCheckbox = document.getElementById(path + '_na');
+      if (naCheckbox && naCheckbox.checked) {
+        const multiSelectCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`);
+        multiSelectCheckboxes.forEach(cb => cb.checked = false);
+      }
+      updateMultiSelectDisplay(dropdownId, path);
+    };
+
+    window.toggleMultiSelectDropdown = function(dropdownId) {
+      const dropdown = document.getElementById(dropdownId + '_dropdown');
+      if (dropdown) {
+        const isOpen = dropdown.classList.contains('open');
+        
+        document.querySelectorAll('.multi-select-dropdown').forEach(dd => {
+          dd.classList.remove('open');
+        });
+        
+        if (!isOpen) {
+          dropdown.classList.add('open');
+        }
+      }
+    };
+
+    function updateMultiSelectDisplay(dropdownId, path) {
+      const selectedContainer = document.getElementById(dropdownId + '_selected');
+      if (!selectedContainer) return;
+      
+      const naCheckbox = document.getElementById(path + '_na');
+      const selectedCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+      
+      selectedContainer.innerHTML = '';
+      
+      if (naCheckbox && naCheckbox.checked) {
+        const tag = document.createElement('span');
+        tag.className = 'multi-select-tag';
+        tag.textContent = naCheckbox.value;
+        selectedContainer.appendChild(tag);
+      } else if (selectedCheckboxes.length > 0) {
+        selectedCheckboxes.forEach(cb => {
+          const tag = document.createElement('span');
+          tag.className = 'multi-select-tag';
+          tag.textContent = cb.value;
+          selectedContainer.appendChild(tag);
+        });
+      } else {
+        const placeholder = document.createElement('span');
+        placeholder.className = 'multi-select-placeholder';
+        placeholder.textContent = '-- Select --';
+        selectedContainer.appendChild(placeholder);
+      }
+    }
+
+    document.addEventListener('click', function(event) {
+      if (!event.target.closest('.multi-select-container')) {
+        document.querySelectorAll('.multi-select-dropdown').forEach(dd => {
+          dd.classList.remove('open');
+        });
+      }
+    });
+  
+    function applyConditionalRules() {
+      if (!conditionalRules || Object.keys(conditionalRules).length === 0) {
+        return;
+      }
+
+      for (const [triggerField, conditions] of Object.entries(conditionalRules)) {
+        conditions.forEach(condition => {
+          const triggerValue = condition.value;
+          const affectedFields = condition.disable_fields || [];
+          
+          const currentValue = getFieldValue(triggerField);
+          
+          // Fix: Better comparison that handles strings
+          const conditionMet = String(currentValue).trim() === String(triggerValue).trim();
+          
+          console.log('Checking condition:', {
+            triggerField,
+            currentValue,
+            triggerValue,
+            conditionMet,
+            affectedFields
+          });
+
+          affectedFields.forEach(fieldKey => {
+            const fieldGroup = document.querySelector(`[data-field-path="${fieldKey}"]`);
+            if (!fieldGroup) {
+              console.log('Field group not found:', fieldKey);            
+              return;
+            }
+            
+            if (conditionMet) {
+              console.log('Disabling field:', fieldKey);            
+              fieldGroup.classList.add('disabled');
+              
+              if (!fieldGroup.querySelector('.disabled-indicator')) {
+                const indicator = document.createElement('div');
+                indicator.className = 'disabled-indicator';
+                indicator.textContent = `Auto-disabled (based on ${triggerField})`;
+                fieldGroup.appendChild(indicator);
+              }
+              
+              setDisabledFieldValue(fieldKey, fieldGroup);
+            } else {
+              console.log('Enabling field:', fieldKey);              
+              fieldGroup.classList.remove('disabled');
+              
+              const indicator = fieldGroup.querySelector('.disabled-indicator');
+              if (indicator) {
+                indicator.remove();
+              }
+            }
+          });
+        });
+      }
+    }
+
+    function getFieldValue(fieldPath) {
+      let input = document.querySelector(`select[data-path="${fieldPath}"]`);
+      if (input) {
+        console.log('Found select for', fieldPath, 'value:', input.value);
+        return input.value;
+      }
+      
+      input = document.querySelector(`input[type="text"][data-path="${fieldPath}"], input[type="email"][data-path="${fieldPath}"]`);
+      if (input) {
+        console.log('Found text input for', fieldPath, 'value:', input.value);   
+        return input.value;
+      }
+      
+      input = document.querySelector(`input[type="number"][data-path="${fieldPath}"]`);
+      if (input) {
+        console.log('Found number input for', fieldPath, 'value:', input.value);
+        return input.value ? Number(input.value) : null;
+      }
+      
+      input = document.querySelector(`input[type="checkbox"][data-path="${fieldPath}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
+      if (input) {
+        console.log('Found checkbox for', fieldPath, 'value:', input.checked);
+        return input.checked;
+      }
+      
+      const naCheckbox = document.getElementById(fieldPath + '_na');
+      if (naCheckbox && naCheckbox.checked) {
+        console.log('Found NA checkbox for', fieldPath, 'value:', naCheckbox.value);
+        return naCheckbox.value;
+      }
+      const multiCheckboxes = document.querySelectorAll(`[data-path="${fieldPath}"].multi-select-checkbox:checked`);
+      if (multiCheckboxes.length > 0) {
+        const values = Array.from(multiCheckboxes).map(cb => cb.value);
+        console.log('Found multi-select for', fieldPath, 'value:', values);
+        return values;
+      }
+
+      console.log('No input found for', fieldPath);
+      return null;
+    }
+
+    function setDisabledFieldValue(fieldPath, fieldGroup) {
+      const fieldType = getFieldTypeFromSchema(fieldPath);
+      let defaultValue;
+      
+      if (fieldType === 'integer' || fieldType === 'number') {
+        defaultValue = -2;
+      } else if (fieldType === 'date') {
+        defaultValue = '1900-01-01';
+      } else {
+        defaultValue = 'N/A';
+      }
+      
+      const selectInput = fieldGroup.querySelector(`select[data-path="${fieldPath}"]`);
+      if (selectInput) {
+        let naOption = Array.from(selectInput.options).find(opt => opt.value === defaultValue);
+        if (!naOption && defaultValue === 'N/A') {
+          naOption = document.createElement('option');
+          naOption.value = 'N/A';
+          naOption.textContent = 'N/A';
+          selectInput.appendChild(naOption);
+        }
+        selectInput.value = defaultValue;
+        return;
+      }
+      
+      const textInput = fieldGroup.querySelector(`input[type="text"][data-path="${fieldPath}"], input[type="email"][data-path="${fieldPath}"]`);
+      if (textInput) {
+        textInput.value = defaultValue;
+        return;
+      }
+      
+      const numberInput = fieldGroup.querySelector(`input[type="number"][data-path="${fieldPath}"]`);
+      if (numberInput) {
+        numberInput.value = defaultValue;
+        return;
+      }
+      
+      const dateInput = fieldGroup.querySelector(`input[type="date"][data-path="${fieldPath}"]`);
+      if (dateInput) {
+        dateInput.value = defaultValue;
+        return;
+      }
+      
+      const multiSelectContainer = fieldGroup.querySelector('.multi-select-container');
+      if (multiSelectContainer) {
+        const dropdownId = multiSelectContainer.id;
+        const path = fieldPath;
+        
+        const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`);
+        allCheckboxes.forEach(cb => cb.checked = false);
+        
+        const naCheckbox = document.getElementById(path + '_na');
+        if (naCheckbox) {
+          naCheckbox.checked = true;
+        }
+        
+        updateMultiSelectDisplay(dropdownId, path);
+        return;
+      }
+    }
+
+    function getFieldTypeFromSchema(fieldPath) {
+      const keys = fieldPath.split('.');
+      let current = currentSchema.properties;
+      
+      for (let i = 0; i < keys.length; i++) {
+        if (!current || !current[keys[i]]) return 'string';
+        
+        const prop = current[keys[i]];
+        
+        if (prop.$ref) {
+          const resolved = resolveRef(prop.$ref);
+          if (i === keys.length - 1) {
+            return resolved.type || 'string';
+          }
+          current = resolved.properties;
+        } else if (i === keys.length - 1) {
+          return prop.type || 'string';
+        } else {
+          current = prop.properties;
+        }
+      }
+      
+      return 'string';
+    }
+
+    function attachEventListeners() {
+      const inputs = document.querySelectorAll('input, select, textarea');
+      inputs.forEach(input => {
+        if (!input.dataset.listenerAttached) {
+          input.addEventListener('change', (e) => {
+            console.log('Field changed:', input.dataset.path || input.name, 'Value:', input.value);
+            formData = collectFormData();
+            // Apply conditional rules after any change
+            setTimeout(() => applyConditionalRules(), 100);
+          });
+          input.dataset.listenerAttached = 'true';
+        }
+      });
+      
+      document.querySelectorAll('.multi-select-container').forEach(container => {
+        const dropdownId = container.id;
+        const firstCheckbox = container.querySelector('[data-path]');
+        if (firstCheckbox) {
+          const path = firstCheckbox.dataset.path;
+          updateMultiSelectDisplay(dropdownId, path);
+        }
+      });
+      
+      // Apply conditional rules on initial load
+      setTimeout(() => applyConditionalRules(), 200);
+    }
+
+    function setNestedValue(obj, path, value) {
+      const keys = path.split('.');
+      let current = obj;
+      
+      for (let i = 0; i < keys.length - 1; i++) {
+        const key = keys[i];
+        const nextKey = keys[i + 1];
+        
+        if (!isNaN(nextKey)) {
+          if (!current[key]) current[key] = [];
+          if (!current[key][nextKey]) current[key][nextKey] = {};
+          current = current[key][nextKey];
+          i++;
+        } else {
+          if (!current[key]) current[key] = {};
+          current = current[key];
+        }
+      }
+      
+      current[keys[keys.length - 1]] = value;
+    }
+
+    function collectFormData() {
+      const data = {};
+      const inputs = document.querySelectorAll('[data-path]');
+      const processedPaths = new Set();
+      
+      inputs.forEach(input => {
+        const path = input.dataset.path;
+        if (!path || processedPaths.has(path)) return;
+        
+        if (input.classList && input.classList.contains('na-checkbox')) {
+          const naCheckbox = document.getElementById(path + '_na');
+          if (naCheckbox && naCheckbox.checked) {
+            setNestedValue(data, path, naCheckbox.value);
+            processedPaths.add(path);
+          }
+        }
+        else if (input.classList && input.classList.contains('multi-select-checkbox')) {
+          if (!processedPaths.has(path)) {
+            const naCheckbox = document.getElementById(path + '_na');
+            if (naCheckbox && naCheckbox.checked) {
+              setNestedValue(data, path, naCheckbox.value);
+            } else {
+              const checkboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+              if (checkboxes.length > 0) {
+                setNestedValue(data, path, Array.from(checkboxes).map(cb => cb.value));
+              } else {
+                setNestedValue(data, path, []);
+              }
+            }
+            processedPaths.add(path);
+          }
+        }
+        else if (input.type === 'checkbox' && !input.classList.contains('na-checkbox') && !input.classList.contains('multi-select-checkbox')) {
+          setNestedValue(data, path, input.checked);
+          processedPaths.add(path);
+        }
+        else if (input.type === 'number') {
+          setNestedValue(data, path, input.value ? Number(input.value) : null);
+          processedPaths.add(path);
+        }
+        else if (input.type === 'date'){
+          setNestedValue(data, path, input.value || null);
+          processedPaths.add(path);
+        }
+        else if (input.tagName === 'TEXTAREA' && input.placeholder.includes('comma-separated')) {
+          const value = input.value.trim() ? input.value.split(',').map(v => v.trim()).filter(v => v) : [];
+          setNestedValue(data, path, value);
+          processedPaths.add(path);
+        }
+        else if (input.tagName === 'SELECT' || (input.tagName === 'INPUT' && input.type === 'text') || (input.tagName === 'INPUT' && input.type === 'email') || input.tagName === 'TEXTAREA') {
+          setNestedValue(data, path, input.value);
+          processedPaths.add(path);
+        }
+      });
+      
+      return data;
+    }
+
+    function populateFormWithData(data) {
+      populateFields(data, []);
+      
+      setTimeout(() => {
+        applyConditionalRules();
+      }, 200);
+      
+      console.log('Form populated with data');
+    }
+
+    function populateFields(data, parentPath) {
+      for (const [key, value] of Object.entries(data)) {
+        const currentPath = [...parentPath, key];
+        const pathStr = currentPath.join('.');
+        
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          populateFields(value, currentPath);
+        } else if (Array.isArray(value)) {
+          if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
+            populateArrayOfObjects(pathStr, value);
+          } else {
+            populateArrayField(pathStr, value);
+          }
+        } else {
+          populateSingleField(pathStr, value);
+        }
+      }
+    }
+
+    function populateSingleField(pathStr, value) {
+      if (value === null || value === undefined) {
+        console.log(`Skipping null/undefined value for ${pathStr}`);
+        return;
+      }
+      
+      const escapedPath = pathStr.replace(/\./g, '_');
+      const container = document.getElementById(`multiselect_${escapedPath}`);
+      
+      if (container) {
+        console.log(`Redirecting ${pathStr} to populateArrayField (found multi-select container)`);
+        populateArrayField(pathStr, value);
+        return;
+      }
+      
+      // Also check for any multi-select container with this path
+      const containers = document.querySelectorAll('.multi-select-container');
+      for (const cont of containers) {
+        const firstCheckbox = cont.querySelector('[data-path]');
+        if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
+          console.log(`Found multi-select container by data-path for: ${pathStr}`);
+          populateArrayField(pathStr, value);
+          return;
+        }
+      }
+      
+
+      // Try select dropdown first (most common)
+      let input = document.querySelector(`select[data-path="${pathStr}"]`);
+      if (input) {
+        // Check if the value exists in the dropdown options
+        const optionExists = Array.from(input.options).some(option => option.value === value);
+        if (optionExists) {
+          input.value = value;
+          input.dispatchEvent(new Event('change'));
+          console.log(`Populated select ${pathStr} with:`, value);
+        } else {
+          console.warn(`Value "${value}" not found in dropdown options for ${pathStr}`);
+        }
+        return;
+      }
+      
+      // Try text/email input
+      input = document.querySelector(`input[type="text"][data-path="${pathStr}"], input[type="email"][data-path="${pathStr}"]`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        console.log(`Populated text ${pathStr} with:`, value);
+        return;
+      }
+      
+      // Try number input
+      input = document.querySelector(`input[type="number"][data-path="${pathStr}"]`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        console.log(`Populated number ${pathStr} with:`, value);
+        return;
+      }
+      
+      // Try date input
+      input = document.querySelector(`input[type="date"][data-path="${pathStr}"]`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        console.log(`Populated date ${pathStr} with:`, value);
+        return;
+      }
+      
+      // Try boolean checkbox
+      input = document.querySelector(`input[type="checkbox"][data-path="${pathStr}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
+      if (input) {
+        input.checked = value === true;
+        input.dispatchEvent(new Event('change'));
+        console.log(`Populated checkbox ${pathStr} with:`, value);
+        return;
+      }
+      
+      // Try textarea
+      input = document.querySelector(`textarea[data-path="${pathStr}"]`);
+      if (input) {
+        if (Array.isArray(value)) {
+          input.value = value.join(', ');
+        } else {
+          input.value = value;
+        }
+        input.dispatchEvent(new Event('change'));
+        console.log(`Populated textarea ${pathStr} with:`, value);
+        return;
+      }
+      
+      console.warn(`Could not find input for path: ${pathStr}`);
+    }
+
+    function populateArrayField(pathStr, values) {
+      console.log(`Populating array field: ${pathStr} with values:`, values);
+      
+      // Helper function to update multi-select display
+      function updateMultiSelectDisplayLocal(dropdownId, path) {
+        const selectedContainer = document.getElementById(dropdownId + '_selected');
+        if (!selectedContainer) return;
+        
+        const naCheckbox = document.getElementById(path + '_na');
+        const selectedCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+        
+        selectedContainer.innerHTML = '';
+        
+        if (naCheckbox && naCheckbox.checked) {
+          const tag = document.createElement('span');
+          tag.className = 'multi-select-tag';
+          tag.textContent = naCheckbox.value;
+          selectedContainer.appendChild(tag);
+        } else if (selectedCheckboxes.length > 0) {
+          selectedCheckboxes.forEach(cb => {
+            const tag = document.createElement('span');
+            tag.className = 'multi-select-tag';
+            tag.textContent = cb.value;
+            selectedContainer.appendChild(tag);
+          });
+        } else {
+          const placeholder = document.createElement('span');
+          placeholder.className = 'multi-select-placeholder';
+          placeholder.textContent = '-- Select --';
+          selectedContainer.appendChild(placeholder);
+        }
+      }
+      
+      // Try multiple ways to find the multi-select container
+      let container = null;
+      
+      // Method 1: By ID (standard pattern)
+      const escapedPath = pathStr.replace(/\./g, '_');
+      container = document.getElementById(`multiselect_${escapedPath}`);
+      
+      // Method 2: By searching all containers for matching data-path
+      if (!container) {
+        const allContainers = document.querySelectorAll('.multi-select-container');
+        for (const cont of allContainers) {
+          const firstCheckbox = cont.querySelector('[data-path]');
+          if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
+            container = cont;
+            break;
+          }
+        }
+      }
+      
+      if (container) {
+        console.log(`Found container for ${pathStr}:`, container.id);
+        
+        // Get all checkboxes for this path - FIXED SELECTOR
+        const allCheckboxes = document.querySelectorAll(`[data-path="${pathStr}"].multi-select-checkbox`);
+        const naCheckbox = document.getElementById(`${pathStr}_na`);
+        
+        if (allCheckboxes.length === 0) {
+          console.warn(`No multi-select checkboxes found for: ${pathStr}`);
+          return;
+        }
+        
+        console.log(`Found ${allCheckboxes.length} checkboxes for ${pathStr}`);
+        
+        // Uncheck all checkboxes first
+        allCheckboxes.forEach(cb => {
+          cb.checked = false;
+        });
+        
+        if (naCheckbox) {
+          naCheckbox.checked = false;
+        }
+        
+        // Define exclusive options that should be mutually exclusive
+        const exclusiveOptions = ['None of the listed options', 'Unknown/Unsure', 'N/A'];
+        
+        // Process the values based on their type
+        if (typeof values === 'string') {
+          console.log(`Processing string value: "${values}"`);
+          
+          // Handle N/A value
+          if (naCheckbox && naCheckbox.value === values) {
+            naCheckbox.checked = true;
+            console.log(`Set NA checkbox for ${pathStr}`);
+          } 
+          // Handle other exclusive options
+          else if (exclusiveOptions.includes(values)) {
+            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
+            if (matchingCheckbox) {
+              matchingCheckbox.checked = true;
+              console.log(`Set exclusive option: ${values}`);
+            }
+          }
+          // Handle regular single value
+          else {
+            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
+            if (matchingCheckbox) {
+              matchingCheckbox.checked = true;
+              console.log(`Set regular value: ${values}`);
+            } else {
+              console.warn(`No checkbox found for value: "${values}"`);
+            }
+          }
+        } 
+        else if (Array.isArray(values)) {
+          console.log(`Processing array with ${values.length} values`);
+          
+          if (values.length === 0) {
+            console.log(`Empty array for ${pathStr}, leaving all unchecked`);
+          } else {
+            // Check if array contains any exclusive options
+            const hasExclusiveOption = values.some(val => exclusiveOptions.includes(val));
+            
+            if (hasExclusiveOption) {
+              // If exclusive option exists, only check that one
+              const exclusiveValue = values.find(val => exclusiveOptions.includes(val));
+              console.log(`Found exclusive value: ${exclusiveValue}`);
+              
+              if (exclusiveValue === 'N/A' && naCheckbox) {
+                naCheckbox.checked = true;
+              } else {
+                const exclusiveCheckbox = Array.from(allCheckboxes).find(cb => cb.value === exclusiveValue);
+                if (exclusiveCheckbox) {
+                  exclusiveCheckbox.checked = true;
+                }
+              }
+            } else {
+              // Check all non-exclusive values
+              values.forEach(val => {
+                const checkbox = Array.from(allCheckboxes).find(cb => cb.value === val);
+                if (checkbox) {
+                  checkbox.checked = true;
+                  console.log(`Checked value: ${val}`);
+                } else {
+                  console.warn(`Checkbox not found for value: "${val}"`);
+                }
+              });
+            }
+          }
+        } 
+        else {
+          console.warn(`Unsupported value type for ${pathStr}:`, typeof values);
+        }
+        
+        // Update the display
+        updateMultiSelectDisplayLocal(container.id, pathStr);
+        console.log(`Updated display for ${pathStr}`);
+        
+      } else {
+        console.warn(`No multi-select container found for: ${pathStr}`);
+        
+        // Fallback: Try to find any input with this path
+        const inputs = document.querySelectorAll(`[data-path="${pathStr}"]`);
+        
+        if (inputs.length > 0) {
+          console.log(`Found ${inputs.length} alternative inputs for ${pathStr}`);
+          
+          // Try select input first
+          const selectInput = document.querySelector(`select[data-path="${pathStr}"]`);
+          if (selectInput) {
+            console.log(`Found select input, setting `);
+            if (typeof values === 'string') {
+              selectInput.value = values;
+            } else if (Array.isArray(values) && values.length > 0) {
+              selectInput.value = values[0];
+            }
+            selectInput.dispatchEvent(new Event('change'));
+            return;
+          }
+          
+          // Try text input
+          const textInput = document.querySelector(`input[type="text"][data-path="${pathStr}"], textarea[data-path="${pathStr}"]`);
+          if (textInput) {
+            console.log(`Found text input, setting value`);
+            if (Array.isArray(values)) {
+              textInput.value = values.join(', ');
+            } else {
+              textInput.value = values;
+            }
+            textInput.dispatchEvent(new Event('change'));
+            return;
+          }
+        } else {
+          console.warn(`Could not find any input for path: ${pathStr}`);
+        }
+      }
+    }
+  
+    function populateArrayOfObjects(pathStr, items) {
+      const container = document.getElementById('array_' + pathStr);
+      if (!container) {
+        console.warn(`Array container not found for: ${pathStr}`);
+        return;
+      }
+      
+      const existingItems = container.querySelectorAll('.array-item');
+      existingItems.forEach(item => item.remove());
+      
+      const keys = pathStr.split('.');
+      let currentProp = currentSchema.properties;
+      
+      for (let i = 0; i < keys.length; i++) {
+        if (currentProp[keys[i]]) {
+          if (currentProp[keys[i]].$ref) {
+            currentProp = resolveRef(currentProp[keys[i]].$ref);
+            if (i < keys.length - 1) {
+              currentProp = currentProp.properties;
+            }
+          } else if (i === keys.length - 1) {
+            currentProp = currentProp[keys[i]];
+          } else {
+            currentProp = currentProp[keys[i]].properties;
+          }
+        }
+      }
+      
+      const itemSchema = currentProp.items;
+      
+      items.forEach((itemData, index) => {
+        window.addArrayItem(pathStr, itemSchema);
+        
+        setTimeout(() => {
+          for (const [subKey, subValue] of Object.entries(itemData)) {
+            const itemPath = `${pathStr}.${index}.${subKey}`;
+            populateSingleField(itemPath, subValue);
+          }
+        }, 50);
+      });
+      
+      console.log(`Populated array ${pathStr} with ${items.length} items`);
+    }
+  </script>
+</body>
+</html>

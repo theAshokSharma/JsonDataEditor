@@ -1,0 +1,40 @@
+<!-- test-form.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Form</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            background: white; 
+            color: black; 
+        }
+        h1 { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>✅ Test Form Loaded Successfully!</h1>
+    <p>If you see this, the HTML is loading correctly.</p>
+    <div id="status">Waiting for data injection...</div>
+    
+    <script>
+        const vscode = acquireVsCodeApi();
+        console.log('Test form script loaded');
+        
+        // Check if data was injected
+        if (window.currentSchema) {
+            document.getElementById('status').innerHTML = 
+                '✅ Data injected: Schema has ' + Object.keys(window.currentSchema.properties || {}).length + ' properties';
+        } else {
+            document.getElementById('status').innerHTML = '❌ No data injected';
+        }
+        
+        // Send a message to extension
+        setTimeout(() => {
+            vscode.postMessage({ command: 'test', data: 'Hello from webview' });
+        }, 1000);
+    </script>
+</body>
+</html>

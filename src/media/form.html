@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JSON Data Editor</title>
   <style>
-    /* All your existing CSS styles */
     * {
       box-sizing: border-box;
       margin: 0;
@@ -64,6 +63,69 @@
       border-radius: 4px;
       border: 1px solid var(--vscode-input-border);
     }
+    
+    /* Tab Styles */
+    .tabs-container {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 20px;
+    }
+    .tabs-header {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background-color: transparent;
+      color: var(--vscode-foreground);
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      border-radius: 4px 4px 0 0;
+      font-size: 14px;
+      position: relative;
+      transition: background-color 0.2s;
+    }
+    .tab-btn:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+    .tab-btn.active {
+      background-color: var(--vscode-tab-activeBackground);
+      color: var(--vscode-tab-activeForeground);
+      border-bottom: 2px solid var(--vscode-focusBorder);
+    }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background-color: var(--vscode-focusBorder);
+    }
+    .tab-content {
+      display: none;
+      padding: 10px 0;
+    }
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .no-tabs-message {
+      padding: 40px;
+      text-align: center;
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+    }
+    
+    /* Form Styles */
     .form-group {
       margin-bottom: 15px;
       padding: 15px;
@@ -395,7 +457,7 @@
 </head>
 <body>
   <div class="container">
-     <div class="header">
+    <div class="header">
       <div class="header-left">
         <button id="configBtn" title="Change schema/choices configuration">
           <span style="font-size: 14px;">⚙️</span> Config
@@ -416,7 +478,13 @@
       </button>
     </div>
     
-    <!-- Main Content -->
+    <!-- Tabs Container -->
+    <div id="tabs-container" class="tabs-container" style="display: none;">
+      <div class="tabs-header" id="tabs-header"></div>
+      <div id="tabs-content" class="tabs-content"></div>
+    </div>
+    
+    <!-- Main Content (no tabs) -->
     <div id="no-schema" class="no-schema">
       <h2>No Schema Loaded</h2>
       <p>Click "Load Schema" to begin</p>
@@ -437,69 +505,32 @@
     // Initialize VS Code API
     const vscode = acquireVsCodeApi();
 
-      // Debug: Check if elements exist
-    // console.log('Debug - Checking elements:');
-    // console.log('configBtn exists:', document.getElementById('configBtn') !== null);
-    // console.log('loadDataBtn exists:', document.getElementById('loadDataBtn') !== null);
-    // console.log('saveBtn exists:', document.getElementById('saveBtn') !== null);
-    // console.log('exportBtn exists:', document.getElementById('exportBtn') !== null);
-    
-
-
     // DOM elements
     const configBtn = document.getElementById('configBtn');
     const loadDataBtn = document.getElementById('loadDataBtn');
     const saveBtn = document.getElementById('saveBtn');
     const exportBtn = document.getElementById('exportBtn');
+    const tabsContainer = document.getElementById('tabs-container');
+    const tabsHeader = document.getElementById('tabs-header');
+    const tabsContent = document.getElementById('tabs-content');
+    const noSchemaDiv = document.getElementById('no-schema');
+    const editorForm = document.getElementById('editor-form');
 
-    // const reloadBtn = document.getElementById('reloadBtn');
-    // const noSchemaDiv = document.getElementById('no-schema');
-    // const editorForm = document.getElementById('editor-form');
-    // const statusBar = document.querySelector('.status-bar');
-    // const schemaStatus = document.getElementById('schema-status');
-    // const choicesStatus = document.getElementById('choices-status');
-    // const dataStatus = document.getElementById('data-status');
-    // const lastSaved = document.getElementById('last-saved');
-
-    // DEBUG
-    // Debug: Check what data was injected
-    // console.log('=== FORM.HTML LOADED ===');
-    // console.log('currentSchema:', window.currentSchema ? 'EXISTS' : 'UNDEFINED');
-    // console.log('customChoices:', window.customChoices ? 'EXISTS' : 'UNDEFINED');
-    // console.log('initialData:', window.initialData ? 'EXISTS' : 'UNDEFINED');
-  
+    // Event listeners
     if (configBtn) {
-        // Config button handler
-        document.getElementById('configBtn').addEventListener('click', () => {
-          vscode.postMessage({ command: 'openConfig' });
-        });
-    } else {
-      console.error('configBtn element not found!');
+      configBtn.addEventListener('click', () => {
+        vscode.postMessage({ command: 'openConfig' });
+      });
     }
-
-    // // Update schema name display
-    // if (window.currentSchema && window.currentSchema.title) {
-    //   document.getElementById('schema-name').textContent = window.currentSchema.title;
-    // } else if (window.currentSchema) {
-    //   document.getElementById('schema-name').textContent = 'Loaded Schema';
-    // } 
-    
-    // // Show alert if no schema
-    // if (!window.currentSchema) {
-    //   console.error('NO SCHEMA INJECTED!');
-    //   document.body.innerHTML = '<h1 style="color: red; padding: 40px;">Error: No schema data was injected</h1>';
-    // }
 
     if (loadDataBtn) {
       loadDataBtn.addEventListener('click', () => {
-        // console.log('Load Data button clicked');
         vscode.postMessage({ command: 'loadData' });
       });
     }
     
     if (saveBtn) {
       saveBtn.addEventListener('click', () => {
-        // console.log('Save button clicked');
         const data = collectFormData();
         vscode.postMessage({ command: 'saveJson', data: data });
       });
@@ -507,13 +538,12 @@
     
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
-        // console.log('Export button clicked');
         const data = collectFormData();
         vscode.postMessage({ command: 'exportJson', data: data });
       });
     }
     
-     // Update schema name display
+    // Update schema name display
     function updateSchemaDisplay() {
       const schemaNameEl = document.getElementById('schema-name');
       if (schemaNameEl && window.currentSchema) {
@@ -527,31 +557,23 @@
     
     // Initialize when DOM is loaded
     document.addEventListener('DOMContentLoaded', function() {
-      // console.log('DOM loaded, checking for injected data...');
       updateSchemaDisplay();
       
       // Check if we have schema data
       if (window.currentSchema) {
-        // console.log('Schema found, rendering form...');
-        // Your existing renderForm function
-        if (typeof renderForm === 'function') {
-          renderForm(window.currentSchema);
-        }
+        renderForm(window.currentSchema);
       } else {
         console.log('No schema data injected yet');
       }
     });   
 
-     // Listen for messages from extension
+    // Listen for messages from extension
     window.addEventListener('message', event => {
       const message = event.data;
-      // console.log('Message received:', message.command);
       
       if (message.command === 'dataLoaded') {
         if (window.currentSchema) {
-          if (typeof populateFormWithData === 'function') {
-            populateFormWithData(message.data);
-          }
+          populateFormWithData(message.data);
         }
       }
     });
@@ -560,60 +582,144 @@
       vscode.postMessage({ command: 'openConfig' });
     }
 
-    function initializeForm() {
-      renderForm(currentSchema);
+    function renderForm(schema) {
+      const form = document.getElementById('editor-form');
+      const noSchema = document.getElementById('no-schema');
       
-      // Update status bar
-      updateSchemaStatus(true);
-      updateChoicesStatus(Object.keys(customChoices).length > 0);
-      updateDataStatus(Object.keys(initialData).length > 0);
-      statusBar.style.display = 'flex';
+      if (!form || !noSchema) {
+        console.error('Required elements not found');
+        return;
+      } 
+
+      form.innerHTML = '';
+      noSchema.style.display = 'none';
+
+      const properties = schema.properties || {};
+      const required = schema.required || [];
       
-      // FIX: Add null check
-      if (statusBar) {
-        statusBar.style.display = 'flex';
+      // Check if we should use tabs
+      const rootKeys = Object.keys(properties);
+      const shouldUseTabs = rootKeys.length > 1;
+      
+      if (shouldUseTabs) {
+        // Show tabs interface
+        tabsContainer.style.display = 'flex';
+        editorForm.style.display = 'none';
+        
+        // Clear existing tabs
+        tabsHeader.innerHTML = '';
+        tabsContent.innerHTML = '';
+        
+        // Create tabs for each root key
+        rootKeys.forEach((key, index) => {
+          const prop = properties[key];
+          const title = prop.title || key;
+          
+          // Create tab button
+          const tabBtn = document.createElement('button');
+          tabBtn.className = 'tab-btn' + (index === 0 ? ' active' : '');
+          tabBtn.textContent = title;
+          tabBtn.dataset.tabKey = key;
+          tabBtn.addEventListener('click', () => switchTab(key));
+          tabsHeader.appendChild(tabBtn);
+          
+          // Create tab content
+          const tabContent = document.createElement('div');
+          tabContent.className = 'tab-content' + (index === 0 ? ' active' : '');
+          tabContent.id = 'tab-' + key;
+          tabContent.dataset.tabKey = key;
+          
+          const isRequired = required.includes(key);
+          const fieldHtml = createField(key, prop, isRequired, [key]);
+          const div = document.createElement('div');
+          div.innerHTML = fieldHtml;
+          tabContent.appendChild(div.firstElementChild);
+          
+          tabsContent.appendChild(tabContent);
+        });
+        
+        // Initialize first tab
+        if (rootKeys.length > 0) {
+          attachEventListenersToTab(rootKeys[0]);
+        }
+        
       } else {
-        console.error('statusBar element not found');
+        // Show regular form (no tabs)
+        tabsContainer.style.display = 'none';
+        editorForm.style.display = 'block';
+        editorForm.classList.add('active');
+        
+        if (rootKeys.length === 1) {
+          // Single root key - render directly
+          const [key] = rootKeys;
+          const prop = properties[key];
+          const isRequired = required.includes(key);
+          const fieldHtml = createField(key, prop, isRequired, [key]);
+          const div = document.createElement('div');
+          div.innerHTML = fieldHtml;
+          form.appendChild(div.firstElementChild);
+        } else {
+          // No root keys or special case
+          const noTabsMessage = document.createElement('div');
+          noTabsMessage.className = 'no-tabs-message';
+          noTabsMessage.textContent = 'No root properties found in schema';
+          form.appendChild(noTabsMessage);
+        }
+        
+        attachEventListeners();
       }
 
-      // Hide loading message
-      noSchemaDiv.style.display = 'none';
-      editorForm.classList.add('active');
-      
       // Populate with initial data if available
       if (Object.keys(initialData).length > 0) {
         setTimeout(() => {
           populateFormWithData(initialData);
-          showNotification('Pre-loaded data applied');
         }, 300);
       }
     }
-
-    function updateSchemaStatus(loaded) {
-      schemaStatus.textContent = `Schema: ${loaded ? 'Loaded' : 'Not loaded'}`;
-      schemaStatus.style.color = loaded ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)';
+    
+    function switchTab(tabKey) {
+      // Update tab buttons
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tabKey === tabKey);
+      });
+      
+      // Update tab content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.dataset.tabKey === tabKey);
+      });
+      
+      // Attach event listeners to the newly active tab
+      attachEventListenersToTab(tabKey);
     }
-
-    function updateChoicesStatus(loaded) {
-      choicesStatus.textContent = `Choices: ${loaded ? 'Loaded' : 'Not loaded'}`;
-      choicesStatus.style.color = loaded ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)';
+    
+    function attachEventListenersToTab(tabKey) {
+      const tabContent = document.getElementById('tab-' + tabKey);
+      if (tabContent) {
+        const inputs = tabContent.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+          if (!input.dataset.listenerAttached) {
+            input.addEventListener('change', (e) => {
+              formData = collectFormData();
+              setTimeout(() => applyConditionalRules(), 100);
+            });
+            input.dataset.listenerAttached = 'true';
+          }
+        });
+        
+        tabContent.querySelectorAll('.multi-select-container').forEach(container => {
+          const dropdownId = container.id;
+          const firstCheckbox = container.querySelector('[data-path]');
+          if (firstCheckbox) {
+            const path = firstCheckbox.dataset.path;
+            updateMultiSelectDisplay(dropdownId, path);
+          }
+        });
+      }
+      
+      // Apply conditional rules
+      setTimeout(() => applyConditionalRules(), 200);
     }
-
-    function updateDataStatus(loaded) {
-      dataStatus.textContent = `Data: ${loaded ? 'Loaded' : 'Not loaded'}`;
-      dataStatus.style.color = loaded ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)';
-    }
-
-    function updateLastSaved() {
-      const now = new Date();
-      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      lastSaved.textContent = `Last saved: ${timeString}`;
-    }
-
-    function showNotification(message) {
-      vscode.postMessage({ command: 'showNotification', text: message });
-    }
-
+    
     function resolveRef(ref) {
       if (!ref || !ref.startsWith('#/')) return null;
       const path = ref.substring(2).split('/');
@@ -623,51 +729,6 @@
         if (!result) return null;
       }
       return result;
-    }
-
-    function renderForm(schema) {
-      const form = document.getElementById('editor-form');
-      const noSchema = document.getElementById('no-schema');
-      
-      // Add null checks
-      if (!form) {
-        console.error('editor-form element not found');
-        return;
-      }
-      
-      if (!noSchema) {
-        console.error('no-schema element not found');
-        return;
-      } 
-
-      form.innerHTML = '';
-      form.classList.add('active');
-      noSchema.style.display = 'none';
-
-      // Also add null checks for these buttons
-      const saveBtn = document.getElementById('saveBtn');
-      const loadChoicesBtn = document.getElementById('loadChoicesBtn');
-      const loadDataBtn = document.getElementById('loadDataBtn');
-      const exportBtn = document.getElementById('exportBtn');
-      
-      if (saveBtn) saveBtn.style.display = 'inline-block';
-      if (loadChoicesBtn) loadChoicesBtn.style.display = 'inline-block';
-      if (loadDataBtn) loadDataBtn.style.display = 'inline-block';
-      if (exportBtn) exportBtn.style.display = 'inline-block';
-
-      const properties = schema.properties || {};
-      const required = schema.required || [];
-      
-
-      for (const [key, prop] of Object.entries(properties)) {
-        const isRequired = required.includes(key);
-        const fieldHtml = createField(key, prop, isRequired, [key]);
-        const div = document.createElement('div');
-        div.innerHTML = fieldHtml;
-        form.appendChild(div.firstElementChild);
-      }
-
-      attachEventListeners();
     }
       
     function createField(key, prop, isRequired, path) {
@@ -918,7 +979,14 @@
       `;
       
       container.insertBefore(itemDiv, container.querySelector('.array-controls'));
-      attachEventListeners();
+      
+      // Reattach event listeners
+      const activeTabBtn = document.querySelector('.tab-btn.active');
+      if (activeTabBtn) {
+        attachEventListenersToTab(activeTabBtn.dataset.tabKey);
+      } else {
+        attachEventListeners();
+      }
     };
 
     window.removeArrayItem = function(btn) {
@@ -1029,17 +1097,8 @@
           
           const currentValue = getFieldValue(triggerField);
           
-          // Fix: Better comparison that handles strings
           const conditionMet = String(currentValue).trim() === String(triggerValue).trim();
           
-          // console.log('Checking condition:', {
-          //   triggerField,
-          //   currentValue,
-          //   triggerValue,
-          //   conditionMet,
-          //   affectedFields
-          // });
-
           affectedFields.forEach(fieldKey => {
             const fieldGroup = document.querySelector(`[data-field-path="${fieldKey}"]`);
             if (!fieldGroup) {
@@ -1048,7 +1107,6 @@
             }
             
             if (conditionMet) {
-              // console.log('Disabling field:', fieldKey);            
               fieldGroup.classList.add('disabled');
               
               if (!fieldGroup.querySelector('.disabled-indicator')) {
@@ -1060,7 +1118,6 @@
               
               setDisabledFieldValue(fieldKey, fieldGroup);
             } else {
-              // console.log('Enabling field:', fieldKey);              
               fieldGroup.classList.remove('disabled');
               
               const indicator = fieldGroup.querySelector('.disabled-indicator');
@@ -1076,37 +1133,31 @@
     function getFieldValue(fieldPath) {
       let input = document.querySelector(`select[data-path="${fieldPath}"]`);
       if (input) {
-        // console.log('Found select for', fieldPath, 'value:', input.value);
         return input.value;
       }
       
       input = document.querySelector(`input[type="text"][data-path="${fieldPath}"], input[type="email"][data-path="${fieldPath}"]`);
       if (input) {
-        // console.log('Found text input for', fieldPath, 'value:', input.value);   
         return input.value;
       }
       
       input = document.querySelector(`input[type="number"][data-path="${fieldPath}"]`);
       if (input) {
-        // console.log('Found number input for', fieldPath, 'value:', input.value);
         return input.value ? Number(input.value) : null;
       }
       
       input = document.querySelector(`input[type="checkbox"][data-path="${fieldPath}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
       if (input) {
-        // console.log('Found checkbox for', fieldPath, 'value:', input.checked);
         return input.checked;
       }
       
       const naCheckbox = document.getElementById(fieldPath + '_na');
       if (naCheckbox && naCheckbox.checked) {
-        // console.log('Found NA checkbox for', fieldPath, 'value:', naCheckbox.value);
         return naCheckbox.value;
       }
       const multiCheckboxes = document.querySelectorAll(`[data-path="${fieldPath}"].multi-select-checkbox:checked`);
       if (multiCheckboxes.length > 0) {
         const values = Array.from(multiCheckboxes).map(cb => cb.value);
-        // console.log('Found multi-select for', fieldPath, 'value:', values);
         return values;
       }
 
@@ -1207,7 +1258,6 @@
           input.addEventListener('change', (e) => {
             console.log('Field changed:', input.dataset.path || input.name, 'Value:', input.value);
             formData = collectFormData();
-            // Apply conditional rules after any change
             setTimeout(() => applyConditionalRules(), 100);
           });
           input.dataset.listenerAttached = 'true';
@@ -1223,7 +1273,6 @@
         }
       });
       
-      // Apply conditional rules on initial load
       setTimeout(() => applyConditionalRules(), 200);
     }
 
@@ -1251,7 +1300,24 @@
 
     function collectFormData() {
       const data = {};
-      const inputs = document.querySelectorAll('[data-path]');
+      
+      // Collect from tabs if active
+      if (tabsContainer.style.display !== 'none') {
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(tabContent => {
+          const inputs = tabContent.querySelectorAll('[data-path]');
+          processInputsForDataCollection(inputs, data);
+        });
+      } else {
+        // Collect from regular form
+        const inputs = document.querySelectorAll('[data-path]');
+        processInputsForDataCollection(inputs, data);
+      }
+      
+      return data;
+    }
+    
+    function processInputsForDataCollection(inputs, data) {
       const processedPaths = new Set();
       
       inputs.forEach(input => {
@@ -1293,7 +1359,7 @@
           setNestedValue(data, path, input.value || null);
           processedPaths.add(path);
         }
-        else if (input.tagName === 'TEXTAREA' && input.placeholder.includes('comma-separated')) {
+        else if (input.tagName === 'TEXTAREA' && input.placeholder && input.placeholder.includes('comma-separated')) {
           const value = input.value.trim() ? input.value.split(',').map(v => v.trim()).filter(v => v) : [];
           setNestedValue(data, path, value);
           processedPaths.add(path);
@@ -1303,8 +1369,6 @@
           processedPaths.add(path);
         }
       });
-      
-      return data;
     }
 
     function populateFormWithData(data) {
@@ -1346,75 +1410,59 @@
       const container = document.getElementById(`multiselect_${escapedPath}`);
       
       if (container) {
-        console.log(`Redirecting ${pathStr} to populateArrayField (found multi-select container)`);
         populateArrayField(pathStr, value);
         return;
       }
       
-      // Also check for any multi-select container with this path
       const containers = document.querySelectorAll('.multi-select-container');
       for (const cont of containers) {
         const firstCheckbox = cont.querySelector('[data-path]');
         if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
-          console.log(`Found multi-select container by data-path for: ${pathStr}`);
           populateArrayField(pathStr, value);
           return;
         }
       }
       
-
-      // Try select dropdown first (most common)
       let input = document.querySelector(`select[data-path="${pathStr}"]`);
       if (input) {
-        // Check if the value exists in the dropdown options
         const optionExists = Array.from(input.options).some(option => option.value === value);
         if (optionExists) {
           input.value = value;
           input.dispatchEvent(new Event('change'));
-          // console.log(`Populated select ${pathStr} with:`, value);
         } else {
           console.warn(`Value "${value}" not found in dropdown options for ${pathStr}`);
         }
         return;
       }
       
-      // Try text/email input
       input = document.querySelector(`input[type="text"][data-path="${pathStr}"], input[type="email"][data-path="${pathStr}"]`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('change'));
-        // console.log(`Populated text ${pathStr} with:`, value);
         return;
       }
       
-      // Try number input
       input = document.querySelector(`input[type="number"][data-path="${pathStr}"]`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('change'));
-        // console.log(`Populated number ${pathStr} with:`, value);
         return;
       }
       
-      // Try date input
       input = document.querySelector(`input[type="date"][data-path="${pathStr}"]`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('change'));
-        // console.log(`Populated date ${pathStr} with:`, value);
         return;
       }
       
-      // Try boolean checkbox
       input = document.querySelector(`input[type="checkbox"][data-path="${pathStr}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
       if (input) {
         input.checked = value === true;
         input.dispatchEvent(new Event('change'));
-        // console.log(`Populated checkbox ${pathStr} with:`, value);
         return;
       }
       
-      // Try textarea
       input = document.querySelector(`textarea[data-path="${pathStr}"]`);
       if (input) {
         if (Array.isArray(value)) {
@@ -1423,7 +1471,6 @@
           input.value = value;
         }
         input.dispatchEvent(new Event('change'));
-        // console.log(`Populated textarea ${pathStr} with:`, value);
         return;
       }
       
@@ -1431,9 +1478,6 @@
     }
 
     function populateArrayField(pathStr, values) {
-      // console.log(`Populating array field: ${pathStr} with values:`, values);
-      
-      // Helper function to update multi-select display
       function updateMultiSelectDisplayLocal(dropdownId, path) {
         const selectedContainer = document.getElementById(dropdownId + '_selected');
         if (!selectedContainer) return;
@@ -1463,14 +1507,11 @@
         }
       }
       
-      // Try multiple ways to find the multi-select container
       let container = null;
       
-      // Method 1: By ID (standard pattern)
       const escapedPath = pathStr.replace(/\./g, '_');
       container = document.getElementById(`multiselect_${escapedPath}`);
       
-      // Method 2: By searching all containers for matching data-path
       if (!container) {
         const allContainers = document.querySelectorAll('.multi-select-container');
         for (const cont of allContainers) {
@@ -1483,9 +1524,6 @@
       }
       
       if (container) {
-        // console.log(`Found container for ${pathStr}:`, container.id);
-        
-        // Get all checkboxes for this path - FIXED SELECTOR
         const allCheckboxes = document.querySelectorAll(`[data-path="${pathStr}"].multi-select-checkbox`);
         const naCheckbox = document.getElementById(`${pathStr}_na`);
         
@@ -1494,9 +1532,6 @@
           return;
         }
         
-        // console.log(`Found ${allCheckboxes.length} checkboxes for ${pathStr}`);
-        
-        // Uncheck all checkboxes first
         allCheckboxes.forEach(cb => {
           cb.checked = false;
         });
@@ -1505,50 +1540,33 @@
           naCheckbox.checked = false;
         }
         
-        // Define exclusive options that should be mutually exclusive
         const exclusiveOptions = ['None of the listed options', 'Unknown/Unsure', 'N/A'];
         
-        // Process the values based on their type
         if (typeof values === 'string') {
-          // console.log(`Processing string value: "${values}"`);
-          
-          // Handle N/A value
           if (naCheckbox && naCheckbox.value === values) {
             naCheckbox.checked = true;
-            // console.log(`Set NA checkbox for ${pathStr}`);
           } 
-          // Handle other exclusive options
           else if (exclusiveOptions.includes(values)) {
             const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
             if (matchingCheckbox) {
               matchingCheckbox.checked = true;
-              // console.log(`Set exclusive option: ${values}`);
             }
           }
-          // Handle regular single value
           else {
             const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
             if (matchingCheckbox) {
               matchingCheckbox.checked = true;
-              // console.log(`Set regular value: ${values}`);
             } else {
               console.warn(`No checkbox found for value: "${values}"`);
             }
           }
         } 
         else if (Array.isArray(values)) {
-          // console.log(`Processing array with ${values.length} values`);
-          
-          if (values.length === 0) {
-            console.log(`Empty array for ${pathStr}, leaving all unchecked`);
-          } else {
-            // Check if array contains any exclusive options
+          if (values.length > 0) {
             const hasExclusiveOption = values.some(val => exclusiveOptions.includes(val));
             
             if (hasExclusiveOption) {
-              // If exclusive option exists, only check that one
               const exclusiveValue = values.find(val => exclusiveOptions.includes(val));
-              // console.log(`Found exclusive value: ${exclusiveValue}`);
               
               if (exclusiveValue === 'N/A' && naCheckbox) {
                 naCheckbox.checked = true;
@@ -1559,12 +1577,10 @@
                 }
               }
             } else {
-              // Check all non-exclusive values
               values.forEach(val => {
                 const checkbox = Array.from(allCheckboxes).find(cb => cb.value === val);
                 if (checkbox) {
                   checkbox.checked = true;
-                  // console.log(`Checked value: ${val}`);
                 } else {
                   console.warn(`Checkbox not found for value: "${val}"`);
                 }
@@ -1576,23 +1592,17 @@
           console.warn(`Unsupported value type for ${pathStr}:`, typeof values);
         }
         
-        // Update the display
         updateMultiSelectDisplayLocal(container.id, pathStr);
         console.log(`Updated display for ${pathStr}`);
         
       } else {
         console.warn(`No multi-select container found for: ${pathStr}`);
         
-        // Fallback: Try to find any input with this path
         const inputs = document.querySelectorAll(`[data-path="${pathStr}"]`);
         
         if (inputs.length > 0) {
-          // console.log(`Found ${inputs.length} alternative inputs for ${pathStr}`);
-          
-          // Try select input first
           const selectInput = document.querySelector(`select[data-path="${pathStr}"]`);
           if (selectInput) {
-            // console.log(`Found select input, setting `);
             if (typeof values === 'string') {
               selectInput.value = values;
             } else if (Array.isArray(values) && values.length > 0) {
@@ -1602,10 +1612,8 @@
             return;
           }
           
-          // Try text input
           const textInput = document.querySelector(`input[type="text"][data-path="${pathStr}"], textarea[data-path="${pathStr}"]`);
           if (textInput) {
-            // console.log(`Found text input, setting value`);
             if (Array.isArray(values)) {
               textInput.value = values.join(', ');
             } else {

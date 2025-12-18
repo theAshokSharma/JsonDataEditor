@@ -1,5 +1,5 @@
 {
-  "$defs": {
+  "definitions": {
     "Biometric": {
       "properties": {
         "mbr_height_feet": {
@@ -109,7 +109,7 @@
           "type": "string"
         },
         "mbr_address": {
-          "$ref": "#/$defs/MemberAddress"
+          "$ref": "#/definitions/MemberAddress"
         },
         "mbr_country_lived_in": {
           "anyOf": [
@@ -524,22 +524,22 @@
   "description": "ResponseRawModel maps to member's response to assessment questionnaire.",
   "properties": {
     "demographic": {
-      "$ref": "#/$defs/Demographic"
+      "$ref": "#/definitions/Demographic"
     },
     "biometric": {
-      "$ref": "#/$defs/Biometric"
+      "$ref": "#/definitions/Biometric"
     },
     "lifestyle": {
-      "$ref": "#/$defs/LifeStyle"
+      "$ref": "#/definitions/LifeStyle"
     },
     "medical_history": {
-      "$ref": "#/$defs/MedicalHistory"
+      "$ref": "#/definitions/MedicalHistory"
     },
     "carcinogen_exposure": {
-      "$ref": "#/$defs/CarcinogenExposure"
+      "$ref": "#/definitions/CarcinogenExposure"
     },
     "genetics": {
-      "$ref": "#/$defs/Genetics"
+      "$ref": "#/definitions/Genetics"
     }
   },
   "required": [

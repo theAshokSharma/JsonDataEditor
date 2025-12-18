@@ -1,0 +1,22 @@
+{
+  "title": "Test Person",
+  "type": "object",
+  "properties": {
+    "personal": {
+      "type": "object",
+      "title": "Personal Information",
+      "properties": {
+        "name": { "type": "string", "title": "Full Name" },
+        "age": { "type": "number", "title": "Age" }
+      }
+    },
+    "contact": {
+      "type": "object",
+      "title": "Contact Details", 
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" }
+      }
+    }
+  }
+}

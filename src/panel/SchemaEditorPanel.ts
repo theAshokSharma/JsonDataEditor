@@ -13,17 +13,28 @@ export class SchemaEditorPanel {
   private _formRenderer: FormRenderer;
   private _fileLoader: FileLoader;
   private _messageHandler: MessageHandler;
-  private _isLoading: boolean = false;
 
-  public static async createOrShow(extensionUri: vscode.Uri, config: EditorConfig) {
+  public static async createOrShow(
+    extensionUri: vscode.Uri, 
+    config: EditorConfig, 
+    existingPanel?: SchemaEditorPanel
+  ): Promise<SchemaEditorPanel | undefined> {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
 
-    // If we already have a panel, show it
+    // If we already have a panel, show it and update content
+    if (existingPanel && SchemaEditorPanel.currentPanel) {
+      // Update the existing panel with new config
+      await SchemaEditorPanel.currentPanel.updateWithConfig(config);
+      SchemaEditorPanel.currentPanel._panel.reveal(column);
+      return SchemaEditorPanel.currentPanel;
+    }
+
+    // If we have a current panel but no existingPanel parameter was passed
     if (SchemaEditorPanel.currentPanel) {
       SchemaEditorPanel.currentPanel._panel.reveal(column);
-      return;
+      return SchemaEditorPanel.currentPanel;
     }
 
     // Create new panel
@@ -40,9 +51,18 @@ export class SchemaEditorPanel {
 
     try {
       SchemaEditorPanel.currentPanel = new SchemaEditorPanel(panel, extensionUri, config);
+      return SchemaEditorPanel.currentPanel;
     } catch (error: any) {
       vscode.window.showErrorMessage(`Failed to create editor: ${error.message}`);
       panel.dispose();
+      return undefined;
+    }
+  }
+
+  public static async updateCurrentPanel(config: EditorConfig): Promise<void> {
+    if (SchemaEditorPanel.currentPanel) {
+      await SchemaEditorPanel.currentPanel.updateWithConfig(config);
+      SchemaEditorPanel.currentPanel._panel.reveal();
     }
   }
 
@@ -59,6 +79,49 @@ export class SchemaEditorPanel {
     this.setupPanelEvents();
   }
 
+  public async updateWithConfig(config: EditorConfig): Promise<void> {
+    this._config = config;
+    await this.reloadContent();
+    
+    // Notify user about the update
+    vscode.window.showInformationMessage('Form reloaded with new schema configuration');
+  }
+
+  public async reloadContent(): Promise<void> {
+    try {
+      // Show loading message
+      this._panel.webview.html = this.getLoadingHtml();
+      
+      // Load schema
+      const schema = await this._fileLoader.loadSchema(this._config.schemaPath);
+      
+      // Load choices if provided
+      let choices = {};
+      if (this._config.choicesPath) {
+        try {
+          choices = await this._fileLoader.loadChoices(this._config.choicesPath);
+        } catch (error) {
+          console.warn('Failed to load choices file:', error);
+          vscode.window.showWarningMessage('Choices file could not be loaded, using schema defaults');
+        }
+      }
+      
+      // Render form with loaded data
+      this._panel.webview.html = this._formRenderer.renderForm(schema, choices);
+      
+      // Update panel title with schema name
+      const schemaTitle = schema.title || 'JSON Editor';
+      this._panel.title = schemaTitle;
+      
+    } catch (error: any) {
+      this._panel.webview.html = this._formRenderer.renderError(error.message);
+      vscode.window.showErrorMessage(`Failed to reload form: ${error.message}`);
+    }
+  }
+
+  public reveal(): void {
+    this._panel.reveal(vscode.ViewColumn.One);
+  }
 
   private setupPanelEvents() {
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -126,8 +189,12 @@ export class SchemaEditorPanel {
 
     // Open config screen
     this._messageHandler.on('openConfig', async (data, panel) => {
-      // Open config command
       vscode.commands.executeCommand('json-data-editor.openConfig');
+    });
+
+    // Reload form (new handler)
+    this._messageHandler.on('reloadForm', async (data, panel) => {
+      await this.reloadContent();
     });
   }
 

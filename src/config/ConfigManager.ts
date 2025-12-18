@@ -38,6 +38,14 @@ export class ConfigManager implements vscode.Disposable {
             if (valid) {
               await this.saveConfig(config);
               panel.dispose();
+              
+              // IMPORTANT: Send a message to the main form to reload
+              // IMPORTANT: Wait a moment for the panel to close before reloading              
+              // This tells the main form to reload with new config
+              setTimeout(() => {
+              vscode.commands.executeCommand('json-data-editor.reloadForm');
+              }, 100);
+              
               resolve(config);
             } else {
               panel.webview.postMessage({

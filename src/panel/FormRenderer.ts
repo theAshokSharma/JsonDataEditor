@@ -9,11 +9,6 @@ export class FormRenderer {
   }
 
   renderForm(schema: any, choices: any = {}, initialData: any = {}): string {
-    // console.log('renderForm called with:');
-    // console.log('- Schema keys:', Object.keys(schema || {}));
-    // console.log('- Choices keys:', Object.keys(choices || {}));
-    // console.log('- InitialData keys:', Object.keys(initialData || {}));
-    
     try {
       // First, let's find where the form.html actually is
       const templatePath = this.findFormHtml();
@@ -59,6 +54,7 @@ export class FormRenderer {
         return this.renderError(`Failed to render form: ${error.message}`);
     }
   }
+
 
   private findFormHtml(): string | null {
     // Try multiple possible locations in order

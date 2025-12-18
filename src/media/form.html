@@ -463,7 +463,7 @@
           <span style="font-size: 14px;">⚙️</span> Config
         </button>
         <div class="schema-info">
-          Schema: <span id="schema-name">Loading...</span>
+          Schema: <span id="schema-name">No Schema Loaded</span>
         </div>
       </div>
       
@@ -487,7 +487,7 @@
     <!-- Main Content (no tabs) -->
     <div id="no-schema" class="no-schema">
       <h2>No Schema Loaded</h2>
-      <p>Click "Load Schema" to begin</p>
+      <p>Click "Config" to load a schema file</p>
     </div>
     
     <div id="editor-form"></div>
@@ -495,11 +495,11 @@
 
   <script>
     // Global variables that will be injected by FormRenderer
-    let currentSchema = window.currentSchema || null;
-    let customChoices = window.customChoices || {};
-    let initialData = window.initialData || {};
-    let definitions = window.definitions || {};
-    let conditionalRules = window.conditionalRules || {};
+    let currentSchema = null;
+    let customChoices = {};
+    let initialData = {};
+    let definitions = {};
+    let conditionalRules = {};
     let formData = {};
 
     // Initialize VS Code API
@@ -515,8 +515,9 @@
     const tabsContent = document.getElementById('tabs-content');
     const noSchemaDiv = document.getElementById('no-schema');
     const editorForm = document.getElementById('editor-form');
+    const schemaNameEl = document.getElementById('schema-name');
 
-    // Event listeners
+    // Event listeners for buttons
     if (configBtn) {
       configBtn.addEventListener('click', () => {
         vscode.postMessage({ command: 'openConfig' });
@@ -542,142 +543,281 @@
         vscode.postMessage({ command: 'exportJson', data: data });
       });
     }
-    
-    // Update schema name display
-    function updateSchemaDisplay() {
-      const schemaNameEl = document.getElementById('schema-name');
-      if (schemaNameEl && window.currentSchema) {
-        if (window.currentSchema.title) {
-          schemaNameEl.textContent = window.currentSchema.title;
-        } else {
-          schemaNameEl.textContent = 'Loaded Schema';
-        }
-      }
-    }
-    
-    // Initialize when DOM is loaded
-    document.addEventListener('DOMContentLoaded', function() {
-      updateSchemaDisplay();
-      
-      // Check if we have schema data
-      if (window.currentSchema) {
-        renderForm(window.currentSchema);
-      } else {
-        console.log('No schema data injected yet');
-      }
-    });   
 
     // Listen for messages from extension
     window.addEventListener('message', event => {
       const message = event.data;
+      console.log('Message received:', message.command);
       
-      if (message.command === 'dataLoaded') {
-        if (window.currentSchema) {
-          populateFormWithData(message.data);
-        }
+      switch (message.command) {
+        case 'updateSchema':
+          handleSchemaUpdate(message);
+          break;
+          
+        case 'dataLoaded':
+          handleDataLoaded(message);
+          break;
+          
+        case 'reloadForm':
+          resetUI();
+          break;
+          
+        case 'showNotification':
+          showNotification(message.text);
+          break;
       }
     });
 
-    function requestReconfigure() {
-      vscode.postMessage({ command: 'openConfig' });
+    function handleSchemaUpdate(message) {
+      console.log('Updating schema with new data');
+      
+      // Update all global variables
+      if (message.schema) {
+        currentSchema = message.schema;
+        console.log('Schema updated:', currentSchema.title || 'Untitled');
+      }
+      
+      if (message.choices) {
+        customChoices = message.choices;
+        console.log('Choices updated:', Object.keys(customChoices).length, 'fields');
+      }
+      
+      if (message.definitions) {
+        definitions = message.definitions;
+        console.log('Definitions updated');
+      }
+      
+      if (message.conditionalRules) {
+        conditionalRules = message.conditionalRules;
+        console.log('Conditional rules updated');
+      }
+      
+      // Clear any existing data
+      initialData = {};
+      formData = {};
+      
+      // Reset and re-render UI
+      resetUI();
+    }
+
+    function handleDataLoaded(message) {
+      console.log('Loading data into form');
+      
+      if (message.data) {
+        initialData = message.data;
+        console.log('Data loaded:', Object.keys(initialData).length, 'root keys');
+        
+        // If we have a schema, populate the form
+        if (currentSchema) {
+          setTimeout(() => {
+            populateFormWithData(initialData);
+            showNotification('Data loaded successfully');
+          }, 300);
+        } else {
+          console.warn('Cannot load data: No schema loaded');
+        }
+      }
+    }
+
+    // Initialize when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded, initializing...');
+      
+      // Check if initial data was injected
+      if (window.currentSchema) {
+        console.log('Initial schema injected');
+        handleSchemaUpdate({
+          schema: window.currentSchema,
+          choices: window.customChoices || {},
+          definitions: window.definitions || {},
+          conditionalRules: window.conditionalRules || {}
+        });
+      } else {
+        console.log('No initial schema injected');
+        updateSchemaDisplay();
+      }
+      
+      // Check for initial data
+      if (window.initialData && Object.keys(window.initialData).length > 0) {
+        console.log('Initial data injected');
+        initialData = window.initialData;
+      }
+    });
+
+    // Update schema name display
+    function updateSchemaDisplay() {
+      if (schemaNameEl) {
+        if (currentSchema && currentSchema.title) {
+          schemaNameEl.textContent = currentSchema.title;
+        } else if (currentSchema) {
+          schemaNameEl.textContent = 'Loaded Schema';
+        } else {
+          schemaNameEl.textContent = 'No Schema Loaded';
+        }
+      }
+    }
+
+    // Clear the entire UI
+    function clearUI() {
+      console.log('Clearing UI');
+      
+      // Clear tabs if they exist
+      if (tabsHeader) tabsHeader.innerHTML = '';
+      if (tabsContent) tabsContent.innerHTML = '';
+      if (tabsContainer) tabsContainer.style.display = 'none';
+      
+      // Clear regular form
+      if (editorForm) {
+        editorForm.innerHTML = '';
+        editorForm.classList.remove('active');
+        editorForm.style.display = 'none';
+      }
+      
+      // Show no schema message by default
+      if (noSchemaDiv) {
+        noSchemaDiv.style.display = 'block';
+      }
+    }
+
+    // Reset the entire UI with current data
+    function resetUI() {
+      console.log('Resetting UI');
+      
+      // Update schema display
+      updateSchemaDisplay();
+      
+      // Clear UI first
+      clearUI();
+      
+      // If we have a schema, render it
+      if (currentSchema) {
+        renderForm(currentSchema);
+        
+        // Populate with initial data if available
+        if (initialData && Object.keys(initialData).length > 0) {
+          setTimeout(() => {
+            populateFormWithData(initialData);
+            console.log('Form populated with initial data');
+          }, 500);
+        }
+      } else {
+        console.log('No schema to render');
+      }
+    }
+
+    function showNotification(message) {
+      // You can add a notification system here if needed
+      console.log('Notification:', message);
     }
 
     function renderForm(schema) {
-      const form = document.getElementById('editor-form');
-      const noSchema = document.getElementById('no-schema');
+      console.log('Rendering form with schema:', schema.title || 'Untitled');
       
-      if (!form || !noSchema) {
-        console.error('Required elements not found');
-        return;
-      } 
-
-      form.innerHTML = '';
-      noSchema.style.display = 'none';
+      // Hide no schema message
+      if (noSchemaDiv) {
+        noSchemaDiv.style.display = 'none';
+      }
 
       const properties = schema.properties || {};
       const required = schema.required || [];
-      
-      // Check if we should use tabs
       const rootKeys = Object.keys(properties);
+      
+      console.log('Root keys found:', rootKeys);
+      
+      // Check if we should use tabs (more than 1 root key)
       const shouldUseTabs = rootKeys.length > 1;
       
       if (shouldUseTabs) {
-        // Show tabs interface
-        tabsContainer.style.display = 'flex';
-        editorForm.style.display = 'none';
-        
-        // Clear existing tabs
-        tabsHeader.innerHTML = '';
-        tabsContent.innerHTML = '';
-        
-        // Create tabs for each root key
-        rootKeys.forEach((key, index) => {
-          const prop = properties[key];
-          const title = prop.title || key;
-          
-          // Create tab button
-          const tabBtn = document.createElement('button');
-          tabBtn.className = 'tab-btn' + (index === 0 ? ' active' : '');
-          tabBtn.textContent = title;
-          tabBtn.dataset.tabKey = key;
-          tabBtn.addEventListener('click', () => switchTab(key));
-          tabsHeader.appendChild(tabBtn);
-          
-          // Create tab content
-          const tabContent = document.createElement('div');
-          tabContent.className = 'tab-content' + (index === 0 ? ' active' : '');
-          tabContent.id = 'tab-' + key;
-          tabContent.dataset.tabKey = key;
-          
-          const isRequired = required.includes(key);
-          const fieldHtml = createField(key, prop, isRequired, [key]);
-          const div = document.createElement('div');
-          div.innerHTML = fieldHtml;
-          tabContent.appendChild(div.firstElementChild);
-          
-          tabsContent.appendChild(tabContent);
-        });
-        
-        // Initialize first tab
-        if (rootKeys.length > 0) {
-          attachEventListenersToTab(rootKeys[0]);
-        }
-        
+        console.log('Using tabbed interface for', rootKeys.length, 'root keys');
+        renderTabsInterface(rootKeys, properties, required);
       } else {
-        // Show regular form (no tabs)
-        tabsContainer.style.display = 'none';
-        editorForm.style.display = 'block';
-        editorForm.classList.add('active');
-        
-        if (rootKeys.length === 1) {
-          // Single root key - render directly
-          const [key] = rootKeys;
-          const prop = properties[key];
-          const isRequired = required.includes(key);
-          const fieldHtml = createField(key, prop, isRequired, [key]);
-          const div = document.createElement('div');
-          div.innerHTML = fieldHtml;
-          form.appendChild(div.firstElementChild);
-        } else {
-          // No root keys or special case
-          const noTabsMessage = document.createElement('div');
-          noTabsMessage.className = 'no-tabs-message';
-          noTabsMessage.textContent = 'No root properties found in schema';
-          form.appendChild(noTabsMessage);
-        }
-        
-        attachEventListeners();
-      }
-
-      // Populate with initial data if available
-      if (Object.keys(initialData).length > 0) {
-        setTimeout(() => {
-          populateFormWithData(initialData);
-        }, 300);
+        console.log('Using regular form interface');
+        renderRegularForm(rootKeys, properties, required);
       }
     }
     
+    function renderTabsInterface(rootKeys, properties, required) {
+      // Show tabs interface
+      tabsContainer.style.display = 'flex';
+      editorForm.style.display = 'none';
+      
+      // Clear existing tabs
+      tabsHeader.innerHTML = '';
+      tabsContent.innerHTML = '';
+      
+      // Create tabs for each root key
+      rootKeys.forEach((key, index) => {
+        const prop = properties[key];
+        const title = prop.title || key;
+        
+        // Create tab button
+        const tabBtn = document.createElement('button');
+        tabBtn.className = 'tab-btn' + (index === 0 ? ' active' : '');
+        tabBtn.textContent = title;
+        tabBtn.dataset.tabKey = key;
+        tabBtn.addEventListener('click', () => switchTab(key));
+        tabsHeader.appendChild(tabBtn);
+        
+        // Create tab content
+        const tabContent = document.createElement('div');
+        tabContent.className = 'tab-content' + (index === 0 ? ' active' : '');
+        tabContent.id = 'tab-' + key;
+        tabContent.dataset.tabKey = key;
+        
+        const isRequired = required.includes(key);
+        const fieldHtml = createField(key, prop, isRequired, [key]);
+        const div = document.createElement('div');
+        div.innerHTML = fieldHtml;
+        tabContent.appendChild(div.firstElementChild);
+        
+        tabsContent.appendChild(tabContent);
+      });
+      
+      // Initialize first tab
+      if (rootKeys.length > 0) {
+        attachEventListenersToTab(rootKeys[0]);
+      }
+    }
+    
+    function renderRegularForm(rootKeys, properties, required) {
+      // Show regular form (no tabs)
+      tabsContainer.style.display = 'none';
+      editorForm.style.display = 'block';
+      editorForm.classList.add('active');
+      
+      if (rootKeys.length === 1) {
+        // Single root key - render directly
+        const [key] = rootKeys;
+        const prop = properties[key];
+        const isRequired = required.includes(key);
+        const fieldHtml = createField(key, prop, isRequired, [key]);
+        const div = document.createElement('div');
+        div.innerHTML = fieldHtml;
+        editorForm.appendChild(div.firstElementChild);
+      } else if (rootKeys.length > 0) {
+        // Multiple root keys but showing without tabs
+        rootKeys.forEach(key => {
+          const prop = properties[key];
+          const isRequired = required.includes(key);
+          const fieldHtml = createField(key, prop, isRequired, [key]);
+          const div = document.createElement('div');
+          div.innerHTML = fieldHtml;
+          editorForm.appendChild(div.firstElementChild);
+        });
+      } else {
+        // No root keys
+        const noTabsMessage = document.createElement('div');
+        noTabsMessage.className = 'no-tabs-message';
+        noTabsMessage.textContent = 'No properties found in schema';
+        editorForm.appendChild(noTabsMessage);
+      }
+      
+      attachEventListeners();
+    }
+    
     function switchTab(tabKey) {
+      console.log('Switching to tab:', tabKey);
+      
       // Update tab buttons
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tabKey === tabKey);
@@ -699,6 +839,7 @@
         inputs.forEach(input => {
           if (!input.dataset.listenerAttached) {
             input.addEventListener('change', (e) => {
+              console.log('Field changed in tab:', tabKey, input.dataset.path, 'Value:', input.value);
               formData = collectFormData();
               setTimeout(() => applyConditionalRules(), 100);
             });
@@ -720,6 +861,34 @@
       setTimeout(() => applyConditionalRules(), 200);
     }
     
+    function attachEventListeners() {
+      const inputs = document.querySelectorAll('input, select, textarea');
+      inputs.forEach(input => {
+        if (!input.dataset.listenerAttached) {
+          input.addEventListener('change', (e) => {
+            console.log('Field changed:', input.dataset.path || input.name, 'Value:', input.value);
+            formData = collectFormData();
+            setTimeout(() => applyConditionalRules(), 100);
+          });
+          input.dataset.listenerAttached = 'true';
+        }
+      });
+      
+      document.querySelectorAll('.multi-select-container').forEach(container => {
+        const dropdownId = container.id;
+        const firstCheckbox = container.querySelector('[data-path]');
+        if (firstCheckbox) {
+          const path = firstCheckbox.dataset.path;
+          updateMultiSelectDisplay(dropdownId, path);
+        }
+      });
+      
+      // Apply conditional rules on initial load
+      setTimeout(() => applyConditionalRules(), 200);
+    }
+
+    // ============ FORM FIELD CREATION FUNCTIONS ============
+
     function resolveRef(ref) {
       if (!ref || !ref.startsWith('#/')) return null;
       const path = ref.substring(2).split('/');
@@ -732,9 +901,10 @@
     }
       
     function createField(key, prop, isRequired, path) {
+      // Handle $ref
       if (prop.$ref) {
-          prop = resolveRef(prop.$ref);
-          if (!prop) return '';
+        prop = resolveRef(prop.$ref);
+        if (!prop) return '';
       }
 
       const type = prop.type;
@@ -742,17 +912,20 @@
       const description = prop.description || '';
       const pathStr = path.join('.');
       
+      // Handle nested objects
       if (type === 'object' && prop.properties) {
-          return createNestedObject(key, prop, isRequired, path);
+        return createNestedObject(key, prop, isRequired, path);
       }
       
+      // Handle arrays of objects
       if (type === 'array') {
-          const items = prop.items;
-          if (items && (items.type === 'object' || items.$ref)) {
+        const items = prop.items;
+        if (items && (items.type === 'object' || items.$ref)) {
           return createArrayOfObjects(key, prop, isRequired, path);
-          }
+        }
       }
 
+      // Get enum values from choices or schema
       let enumValues = [];
       let responseType = null;
       let hasNAOption = false;
@@ -761,139 +934,150 @@
       const choiceConfig = customChoices[key] || customChoices[pathStr];
       
       if (choiceConfig && typeof choiceConfig === 'object' && !Array.isArray(choiceConfig)) {
-          let rawValues = choiceConfig.values || [];
-          
-          enumValues = [];
-          rawValues.forEach(val => {
+        let rawValues = choiceConfig.values || [];
+        
+        enumValues = [];
+        rawValues.forEach(val => {
           if (typeof val === 'string' && val.includes('-')) {
-              const rangeMatch = val.match(/^(\d+)-(\d+)$/);
-              if (rangeMatch) {
+            const rangeMatch = val.match(/^(\d+)-(\d+)$/);
+            if (rangeMatch) {
               const start = parseInt(rangeMatch[1]);
               const end = parseInt(rangeMatch[2]);
               if (start <= end) {
-                  for (let i = start; i <= end; i++) {
+                for (let i = start; i <= end; i++) {
                   enumValues.push(i);
-                  }
+                }
               }
-              } else {
+            } else {
               enumValues.push(val);
-              }
+            }
           } else {
-              enumValues.push(val);
+            enumValues.push(val);
           }
-          });
-          
-          responseType = choiceConfig.response_type || null;
-          naValue = choiceConfig.na || null;
-          hasNAOption = naValue !== null;
+        });
+        
+        responseType = choiceConfig.response_type || null;
+        naValue = choiceConfig.na || null;
+        hasNAOption = naValue !== null;
       } else if (Array.isArray(choiceConfig)) {
-          enumValues = choiceConfig;
-          responseType = type === 'array' ? 'multi-select' : 'single-select';
+        enumValues = choiceConfig;
+        responseType = type === 'array' ? 'multi-select' : 'single-select';
       } else {
-          enumValues = prop.enum || [];
-          responseType = type === 'array' ? 'multi-select' : 'single-select';
+        enumValues = prop.enum || [];
+        responseType = type === 'array' ? 'multi-select' : 'single-select';
       }
       
       let inputHtml = '';
 
       if (enumValues.length > 0) {
-          if (responseType === 'multi-select') {
-          const dropdownId = 'multiselect_' + pathStr.replace(/\./g, '_');
-          inputHtml = `
-              <div class="multi-select-container" id="${dropdownId}">
-              <div class="multi-select-trigger" onclick="toggleMultiSelectDropdown('${dropdownId}')" tabindex="0">
-                  <div class="multi-select-selected" id="${dropdownId}_selected">
-                  <span class="multi-select-placeholder">-- Select --</span>
-                  </div>
-              </div>
-              <div class="multi-select-dropdown" id="${dropdownId}_dropdown">
-          `;
-          
-          enumValues.forEach((val, idx) => {
-              inputHtml += `
-              <div class="multi-select-option">
-                  <input type="checkbox" 
-                      id="${pathStr}_${idx}" 
-                      value="${val}" 
-                      data-path="${pathStr}"
-                      data-dropdown="${dropdownId}"
-                      class="multi-select-checkbox"
-                      onchange="handleMultiSelectChange('${pathStr}', '${dropdownId}')">
-                  <label for="${pathStr}_${idx}">${val}</label>
-              </div>
-              `;
-          });
-          
-          if (hasNAOption) {
-              inputHtml += `
-              <div class="multi-select-option na-option">
-                  <input type="checkbox" 
-                      id="${pathStr}_na" 
-                      value="${naValue}" 
-                      data-path="${pathStr}"
-                      data-dropdown="${dropdownId}"
-                      class="na-checkbox"
-                      onchange="handleNAChange('${pathStr}', '${dropdownId}')">
-                  <label for="${pathStr}_na">${naValue} (exclusive)</label>
-              </div>
-              `;
-          }
-          
-          inputHtml += `
-              </div>
-              </div>
-          `;
-          } else if (responseType === 'single-select') {
-          inputHtml = `<select name="${pathStr}" id="${pathStr}" data-path="${pathStr}">
-              <option value="">-- Select --</option>
-              ${enumValues.map(val => `<option value="${val}">${val}</option>`).join('')}`;
-          
-          if (hasNAOption) {
-              inputHtml += `<option value="${naValue}">${naValue}</option>`;
-          }
-          
-          inputHtml += `</select>`;
-          }
+        if (responseType === 'multi-select') {
+          inputHtml = createMultiSelectInput(pathStr, enumValues, hasNAOption, naValue);
+        } else if (responseType === 'single-select') {
+          inputHtml = createSingleSelectInput(pathStr, enumValues, hasNAOption, naValue);
+        }
       } else {
-          switch (type) {
-          case 'string':
-              if (prop.format === 'date') {
-              const minDate = prop.minimum || '1930-01-01';
-              const maxDate = prop.maximum || new Date().toISOString().split('T')[0];
-              inputHtml = `<input type="date" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" min="${minDate}" max="${maxDate}" ${isRequired ? 'required' : ''}>`;              
-              } else if (prop.format === 'email') {
-              inputHtml = `<input type="email" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
-              } else if (prop.maxLength && prop.maxLength > 100) {
-              inputHtml = `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}></textarea>`;
-              } else {
-              inputHtml = `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
-              }
-              break;
-          case 'integer':
-          case 'number':
-              inputHtml = `<input type="number" name="${pathStr}" id="${pathStr}" data-path="${pathStr}"
-              ${prop.minimum !== undefined ? `min="${prop.minimum}"` : ''}
-              ${prop.maximum !== undefined ? `max="${prop.maximum}"` : ''}
-              ${isRequired ? 'required' : ''}>`;
-              break;
-          case 'boolean':
-              inputHtml = `<input type="checkbox" name="${pathStr}" id="${pathStr}" data-path="${pathStr}">`;
-              break;
-          case 'array':
-              inputHtml = `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" placeholder="Enter comma-separated values"></textarea>`;
-              break;
-          default:
-              inputHtml = `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
-          }
+        inputHtml = createBasicInput(type, pathStr, prop, isRequired);
       }
 
       return `
-          <div class="form-group" data-field-path="${pathStr}">
+        <div class="form-group" data-field-path="${pathStr}">
           <label class="${isRequired ? 'required' : ''}">${title}</label>
           ${description ? `<div class="description">${description}</div>` : ''}
           ${inputHtml}
-          </div>
+        </div>
       `;
+    }
+
+    function createMultiSelectInput(pathStr, enumValues, hasNAOption, naValue) {
+      const dropdownId = 'multiselect_' + pathStr.replace(/\./g, '_');
+      let html = `
+        <div class="multi-select-container" id="${dropdownId}">
+          <div class="multi-select-trigger" onclick="toggleMultiSelectDropdown('${dropdownId}')" tabindex="0">
+            <div class="multi-select-selected" id="${dropdownId}_selected">
+              <span class="multi-select-placeholder">-- Select --</span>
+            </div>
+          </div>
+          <div class="multi-select-dropdown" id="${dropdownId}_dropdown">
+      `;
+      
+      enumValues.forEach((val, idx) => {
+        html += `
+          <div class="multi-select-option">
+            <input type="checkbox" 
+              id="${pathStr}_${idx}" 
+              value="${val}" 
+              data-path="${pathStr}"
+              data-dropdown="${dropdownId}"
+              class="multi-select-checkbox"
+              onchange="handleMultiSelectChange('${pathStr}', '${dropdownId}')">
+            <label for="${pathStr}_${idx}">${val}</label>
+          </div>
+        `;
+      });
+      
+      if (hasNAOption) {
+        html += `
+          <div class="multi-select-option na-option">
+            <input type="checkbox" 
+              id="${pathStr}_na" 
+              value="${naValue}" 
+              data-path="${pathStr}"
+              data-dropdown="${dropdownId}"
+              class="na-checkbox"
+              onchange="handleNAChange('${pathStr}', '${dropdownId}')">
+            <label for="${pathStr}_na">${naValue} (exclusive)</label>
+          </div>
+        `;
+      }
+      
+      html += `
+          </div>
+        </div>
+      `;
+      
+      return html;
+    }
+
+    function createSingleSelectInput(pathStr, enumValues, hasNAOption, naValue) {
+      let html = `<select name="${pathStr}" id="${pathStr}" data-path="${pathStr}">
+        <option value="">-- Select --</option>
+        ${enumValues.map(val => `<option value="${val}">${val}</option>`).join('')}`;
+      
+      if (hasNAOption) {
+        html += `<option value="${naValue}">${naValue}</option>`;
+      }
+      
+      html += `</select>`;
+      return html;
+    }
+
+    function createBasicInput(type, pathStr, prop, isRequired) {
+      switch (type) {
+        case 'string':
+          if (prop.format === 'date') {
+            const minDate = prop.minimum || '1930-01-01';
+            const maxDate = prop.maximum || new Date().toISOString().split('T')[0];
+            return `<input type="date" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" min="${minDate}" max="${maxDate}" ${isRequired ? 'required' : ''}>`;
+          } else if (prop.format === 'email') {
+            return `<input type="email" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+          } else if (prop.maxLength && prop.maxLength > 100) {
+            return `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}></textarea>`;
+          } else {
+            return `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+          }
+        case 'integer':
+        case 'number':
+          return `<input type="number" name="${pathStr}" id="${pathStr}" data-path="${pathStr}"
+            ${prop.minimum !== undefined ? `min="${prop.minimum}"` : ''}
+            ${prop.maximum !== undefined ? `max="${prop.maximum}"` : ''}
+            ${isRequired ? 'required' : ''}>`;
+        case 'boolean':
+          return `<input type="checkbox" name="${pathStr}" id="${pathStr}" data-path="${pathStr}">`;
+        case 'array':
+          return `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" placeholder="Enter comma-separated values"></textarea>`;
+        default:
+          return `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+      }
     }
 
     function createNestedObject(key, prop, isRequired, path) {
@@ -905,23 +1089,23 @@
       
       let fieldsHtml = '';
       for (const [subKey, subProp] of Object.entries(properties)) {
-          const isSubRequired = required.includes(subKey);
-          fieldsHtml += createField(subKey, subProp, isSubRequired, [...path, subKey]);
+        const isSubRequired = required.includes(subKey);
+        fieldsHtml += createField(subKey, subProp, isSubRequired, [...path, subKey]);
       }
 
       return `
-          <div class="form-group" data-field-path="${pathStr}">
+        <div class="form-group" data-field-path="${pathStr}">
           <div class="nested-object">
-              <div class="nested-object-header" onclick="toggleNested(this)">
+            <div class="nested-object-header" onclick="toggleNested(this)">
               <span>${title}</span>
               ${isRequired ? '<span style="color: var(--vscode-errorForeground)">*</span>' : ''}
-              </div>
-              ${description ? `<div class="description">${description}</div>` : ''}
-              <div class="nested-object-content">
+            </div>
+            ${description ? `<div class="description">${description}</div>` : ''}
+            <div class="nested-object-content">
               ${fieldsHtml}
-              </div>
+            </div>
           </div>
-          </div>
+        </div>
       `;
     }
 
@@ -942,7 +1126,9 @@
         </div>
       `;
     }
-    
+
+    // ============ GLOBAL WINDOW FUNCTIONS ============
+
     window.toggleNested = function(header) {
       header.classList.toggle('collapsed');
       header.nextElementSibling.nextElementSibling.classList.toggle('collapsed');
@@ -1048,6 +1234,8 @@
       }
     };
 
+    // ============ UTILITY FUNCTIONS ============
+
     function updateMultiSelectDisplay(dropdownId, path) {
       const selectedContainer = document.getElementById(dropdownId + '_selected');
       if (!selectedContainer) return;
@@ -1084,7 +1272,365 @@
         });
       }
     });
+
+    // ============ FORM DATA COLLECTION ============
+
+    function setNestedValue(obj, path, value) {
+      const keys = path.split('.');
+      let current = obj;
+      
+      for (let i = 0; i < keys.length - 1; i++) {
+        const key = keys[i];
+        const nextKey = keys[i + 1];
+        
+        if (!isNaN(nextKey)) {
+          if (!current[key]) current[key] = [];
+          if (!current[key][nextKey]) current[key][nextKey] = {};
+          current = current[key][nextKey];
+          i++;
+        } else {
+          if (!current[key]) current[key] = {};
+          current = current[key];
+        }
+      }
+      
+      current[keys[keys.length - 1]] = value;
+    }
+
+    function collectFormData() {
+      const data = {};
+      
+      // Collect from tabs if active
+      if (tabsContainer.style.display !== 'none') {
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(tabContent => {
+          const inputs = tabContent.querySelectorAll('[data-path]');
+          processInputsForDataCollection(inputs, data);
+        });
+      } else {
+        // Collect from regular form
+        const inputs = document.querySelectorAll('[data-path]');
+        processInputsForDataCollection(inputs, data);
+      }
+      
+      console.log('Collected form data:', data);
+      return data;
+    }
+    
+    function processInputsForDataCollection(inputs, data) {
+      const processedPaths = new Set();
+      
+      inputs.forEach(input => {
+        const path = input.dataset.path;
+        if (!path || processedPaths.has(path)) return;
+        
+        if (input.classList && input.classList.contains('na-checkbox')) {
+          const naCheckbox = document.getElementById(path + '_na');
+          if (naCheckbox && naCheckbox.checked) {
+            setNestedValue(data, path, naCheckbox.value);
+            processedPaths.add(path);
+          }
+        }
+        else if (input.classList && input.classList.contains('multi-select-checkbox')) {
+          if (!processedPaths.has(path)) {
+            const naCheckbox = document.getElementById(path + '_na');
+            if (naCheckbox && naCheckbox.checked) {
+              setNestedValue(data, path, naValue);
+            } else {
+              const checkboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+              if (checkboxes.length > 0) {
+                setNestedValue(data, path, Array.from(checkboxes).map(cb => cb.value));
+              } else {
+                setNestedValue(data, path, []);
+              }
+            }
+            processedPaths.add(path);
+          }
+        }
+        else if (input.type === 'checkbox' && !input.classList.contains('na-checkbox') && !input.classList.contains('multi-select-checkbox')) {
+          setNestedValue(data, path, input.checked);
+          processedPaths.add(path);
+        }
+        else if (input.type === 'number') {
+          setNestedValue(data, path, input.value ? Number(input.value) : null);
+          processedPaths.add(path);
+        }
+        else if (input.type === 'date'){
+          setNestedValue(data, path, input.value || null);
+          processedPaths.add(path);
+        }
+        else if (input.tagName === 'TEXTAREA' && input.placeholder && input.placeholder.includes('comma-separated')) {
+          const value = input.value.trim() ? input.value.split(',').map(v => v.trim()).filter(v => v) : [];
+          setNestedValue(data, path, value);
+          processedPaths.add(path);
+        }
+        else if (input.tagName === 'SELECT' || (input.tagName === 'INPUT' && input.type === 'text') || (input.tagName === 'INPUT' && input.type === 'email') || input.tagName === 'TEXTAREA') {
+          setNestedValue(data, path, input.value);
+          processedPaths.add(path);
+        }
+      });
+    }
+
+    // ============ FORM POPULATION FUNCTIONS ============
+
+    function populateFormWithData(data) {
+      console.log('Populating form with data:', data);
+      populateFields(data, []);
+      
+      setTimeout(() => {
+        applyConditionalRules();
+      }, 200);
+    }
+
+    function populateFields(data, parentPath) {
+      for (const [key, value] of Object.entries(data)) {
+        const currentPath = [...parentPath, key];
+        const pathStr = currentPath.join('.');
+        
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          populateFields(value, currentPath);
+        } else if (Array.isArray(value)) {
+          if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
+            populateArrayOfObjects(pathStr, value);
+          } else {
+            populateArrayField(pathStr, value);
+          }
+        } else {
+          populateSingleField(pathStr, value);
+        }
+      }
+    }
+
+    function populateSingleField(pathStr, value) {
+      if (value === null || value === undefined) {
+        console.log(`Skipping null/undefined value for ${pathStr}`);
+        return;
+      }
+      
+      // Try to find multi-select container first
+      const escapedPath = pathStr.replace(/\./g, '_');
+      let container = document.getElementById(`multiselect_${escapedPath}`);
+      
+      if (!container) {
+        const containers = document.querySelectorAll('.multi-select-container');
+        for (const cont of containers) {
+          const firstCheckbox = cont.querySelector('[data-path]');
+          if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
+            container = cont;
+            break;
+          }
+        }
+      }
+      
+      if (container) {
+        populateArrayField(pathStr, value);
+        return;
+      }
+      
+      // Try select dropdown
+      let input = document.querySelector(`select[data-path="${pathStr}"]`);
+      if (input) {
+        const optionExists = Array.from(input.options).some(option => option.value === value);
+        if (optionExists) {
+          input.value = value;
+          input.dispatchEvent(new Event('change'));
+        } else {
+          console.warn(`Value "${value}" not found in dropdown options for ${pathStr}`);
+        }
+        return;
+      }
+      
+      // Try text/email input
+      input = document.querySelector(`input[type="text"][data-path="${pathStr}"], input[type="email"][data-path="${pathStr}"]`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        return;
+      }
+      
+      // Try number input
+      input = document.querySelector(`input[type="number"][data-path="${pathStr}"]`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        return;
+      }
+      
+      // Try date input
+      input = document.querySelector(`input[type="date"][data-path="${pathStr}"]`);
+      if (input) {
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+        return;
+      }
+      
+      // Try boolean checkbox
+      input = document.querySelector(`input[type="checkbox"][data-path="${pathStr}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
+      if (input) {
+        input.checked = value === true;
+        input.dispatchEvent(new Event('change'));
+        return;
+      }
+      
+      // Try textarea
+      input = document.querySelector(`textarea[data-path="${pathStr}"]`);
+      if (input) {
+        if (Array.isArray(value)) {
+          input.value = value.join(', ');
+        } else {
+          input.value = value;
+        }
+        input.dispatchEvent(new Event('change'));
+        return;
+      }
+      
+      console.warn(`Could not find input for path: ${pathStr}`);
+    }
+
+    function populateArrayField(pathStr, values) {
+      console.log(`Populating array field: ${pathStr} with values:`, values);
+      
+      function updateMultiSelectDisplayLocal(dropdownId, path) {
+        const selectedContainer = document.getElementById(dropdownId + '_selected');
+        if (!selectedContainer) return;
+        
+        const naCheckbox = document.getElementById(path + '_na');
+        const selectedCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+        
+        selectedContainer.innerHTML = '';
+        
+        if (naCheckbox && naCheckbox.checked) {
+          const tag = document.createElement('span');
+          tag.className = 'multi-select-tag';
+          tag.textContent = naCheckbox.value;
+          selectedContainer.appendChild(tag);
+        } else if (selectedCheckboxes.length > 0) {
+          selectedCheckboxes.forEach(cb => {
+            const tag = document.createElement('span');
+            tag.className = 'multi-select-tag';
+            tag.textContent = cb.value;
+            selectedContainer.appendChild(tag);
+          });
+        } else {
+          const placeholder = document.createElement('span');
+          placeholder.className = 'multi-select-placeholder';
+          placeholder.textContent = '-- Select --';
+          selectedContainer.appendChild(placeholder);
+        }
+      }
+      
+      let container = null;
+      
+      const escapedPath = pathStr.replace(/\./g, '_');
+      container = document.getElementById(`multiselect_${escapedPath}`);
+      
+      if (!container) {
+        const allContainers = document.querySelectorAll('.multi-select-container');
+        for (const cont of allContainers) {
+          const firstCheckbox = cont.querySelector('[data-path]');
+          if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
+            container = cont;
+            break;
+          }
+        }
+      }
+      
+      if (container) {
+        const allCheckboxes = document.querySelectorAll(`[data-path="${pathStr}"].multi-select-checkbox`);
+        const naCheckbox = document.getElementById(`${pathStr}_na`);
+        
+        if (allCheckboxes.length === 0) {
+          console.warn(`No multi-select checkboxes found for: ${pathStr}`);
+          return;
+        }
+        
+        // Uncheck all checkboxes first
+        allCheckboxes.forEach(cb => cb.checked = false);
+        if (naCheckbox) naCheckbox.checked = false;
+        
+        const exclusiveOptions = ['None of the listed options', 'Unknown/Unsure', 'N/A'];
+        
+        if (typeof values === 'string') {
+          if (naCheckbox && naCheckbox.value === values) {
+            naCheckbox.checked = true;
+          } else if (exclusiveOptions.includes(values)) {
+            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
+            if (matchingCheckbox) matchingCheckbox.checked = true;
+          } else {
+            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
+            if (matchingCheckbox) matchingCheckbox.checked = true;
+          }
+        } else if (Array.isArray(values)) {
+          if (values.length > 0) {
+            const hasExclusiveOption = values.some(val => exclusiveOptions.includes(val));
+            
+            if (hasExclusiveOption) {
+              const exclusiveValue = values.find(val => exclusiveOptions.includes(val));
+              if (exclusiveValue === 'N/A' && naCheckbox) {
+                naCheckbox.checked = true;
+              } else {
+                const exclusiveCheckbox = Array.from(allCheckboxes).find(cb => cb.value === exclusiveValue);
+                if (exclusiveCheckbox) exclusiveCheckbox.checked = true;
+              }
+            } else {
+              values.forEach(val => {
+                const checkbox = Array.from(allCheckboxes).find(cb => cb.value === val);
+                if (checkbox) checkbox.checked = true;
+              });
+            }
+          }
+        }
+        
+        updateMultiSelectDisplayLocal(container.id, pathStr);
+      } else {
+        console.warn(`No multi-select container found for: ${pathStr}`);
+      }
+    }
   
+    function populateArrayOfObjects(pathStr, items) {
+      const container = document.getElementById('array_' + pathStr);
+      if (!container) {
+        console.warn(`Array container not found for: ${pathStr}`);
+        return;
+      }
+      
+      const existingItems = container.querySelectorAll('.array-item');
+      existingItems.forEach(item => item.remove());
+      
+      const keys = pathStr.split('.');
+      let currentProp = currentSchema.properties;
+      
+      for (let i = 0; i < keys.length; i++) {
+        if (currentProp[keys[i]]) {
+          if (currentProp[keys[i]].$ref) {
+            currentProp = resolveRef(currentProp[keys[i]].$ref);
+            if (i < keys.length - 1) {
+              currentProp = currentProp.properties;
+            }
+          } else if (i === keys.length - 1) {
+            currentProp = currentProp[keys[i]];
+          } else {
+            currentProp = currentProp[keys[i]].properties;
+          }
+        }
+      }
+      
+      const itemSchema = currentProp.items;
+      
+      items.forEach((itemData, index) => {
+        window.addArrayItem(pathStr, itemSchema);
+        
+        setTimeout(() => {
+          for (const [subKey, subValue] of Object.entries(itemData)) {
+            const itemPath = `${pathStr}.${index}.${subKey}`;
+            populateSingleField(itemPath, subValue);
+          }
+        }, 50);
+      });
+    }
+
+    // ============ CONDITIONAL RULES ============
+
     function applyConditionalRules() {
       if (!conditionalRules || Object.keys(conditionalRules).length === 0) {
         return;
@@ -1096,15 +1642,11 @@
           const affectedFields = condition.disable_fields || [];
           
           const currentValue = getFieldValue(triggerField);
-          
           const conditionMet = String(currentValue).trim() === String(triggerValue).trim();
           
           affectedFields.forEach(fieldKey => {
             const fieldGroup = document.querySelector(`[data-field-path="${fieldKey}"]`);
-            if (!fieldGroup) {
-              console.log('Field group not found:', fieldKey);            
-              return;
-            }
+            if (!fieldGroup) return;
             
             if (conditionMet) {
               fieldGroup.classList.add('disabled');
@@ -1121,9 +1663,7 @@
               fieldGroup.classList.remove('disabled');
               
               const indicator = fieldGroup.querySelector('.disabled-indicator');
-              if (indicator) {
-                indicator.remove();
-              }
+              if (indicator) indicator.remove();
             }
           });
         });
@@ -1132,36 +1672,25 @@
 
     function getFieldValue(fieldPath) {
       let input = document.querySelector(`select[data-path="${fieldPath}"]`);
-      if (input) {
-        return input.value;
-      }
+      if (input) return input.value;
       
       input = document.querySelector(`input[type="text"][data-path="${fieldPath}"], input[type="email"][data-path="${fieldPath}"]`);
-      if (input) {
-        return input.value;
-      }
+      if (input) return input.value;
       
       input = document.querySelector(`input[type="number"][data-path="${fieldPath}"]`);
-      if (input) {
-        return input.value ? Number(input.value) : null;
-      }
+      if (input) return input.value ? Number(input.value) : null;
       
       input = document.querySelector(`input[type="checkbox"][data-path="${fieldPath}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
-      if (input) {
-        return input.checked;
-      }
+      if (input) return input.checked;
       
       const naCheckbox = document.getElementById(fieldPath + '_na');
-      if (naCheckbox && naCheckbox.checked) {
-        return naCheckbox.value;
-      }
+      if (naCheckbox && naCheckbox.checked) return naCheckbox.value;
+      
       const multiCheckboxes = document.querySelectorAll(`[data-path="${fieldPath}"].multi-select-checkbox:checked`);
       if (multiCheckboxes.length > 0) {
-        const values = Array.from(multiCheckboxes).map(cb => cb.value);
-        return values;
+        return Array.from(multiCheckboxes).map(cb => cb.value);
       }
 
-      console.log('No input found for', fieldPath);
       return null;
     }
 
@@ -1217,9 +1746,7 @@
         allCheckboxes.forEach(cb => cb.checked = false);
         
         const naCheckbox = document.getElementById(path + '_na');
-        if (naCheckbox) {
-          naCheckbox.checked = true;
-        }
+        if (naCheckbox) naCheckbox.checked = true;
         
         updateMultiSelectDisplay(dropdownId, path);
         return;
@@ -1249,427 +1776,6 @@
       }
       
       return 'string';
-    }
-
-    function attachEventListeners() {
-      const inputs = document.querySelectorAll('input, select, textarea');
-      inputs.forEach(input => {
-        if (!input.dataset.listenerAttached) {
-          input.addEventListener('change', (e) => {
-            console.log('Field changed:', input.dataset.path || input.name, 'Value:', input.value);
-            formData = collectFormData();
-            setTimeout(() => applyConditionalRules(), 100);
-          });
-          input.dataset.listenerAttached = 'true';
-        }
-      });
-      
-      document.querySelectorAll('.multi-select-container').forEach(container => {
-        const dropdownId = container.id;
-        const firstCheckbox = container.querySelector('[data-path]');
-        if (firstCheckbox) {
-          const path = firstCheckbox.dataset.path;
-          updateMultiSelectDisplay(dropdownId, path);
-        }
-      });
-      
-      setTimeout(() => applyConditionalRules(), 200);
-    }
-
-    function setNestedValue(obj, path, value) {
-      const keys = path.split('.');
-      let current = obj;
-      
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        const nextKey = keys[i + 1];
-        
-        if (!isNaN(nextKey)) {
-          if (!current[key]) current[key] = [];
-          if (!current[key][nextKey]) current[key][nextKey] = {};
-          current = current[key][nextKey];
-          i++;
-        } else {
-          if (!current[key]) current[key] = {};
-          current = current[key];
-        }
-      }
-      
-      current[keys[keys.length - 1]] = value;
-    }
-
-    function collectFormData() {
-      const data = {};
-      
-      // Collect from tabs if active
-      if (tabsContainer.style.display !== 'none') {
-        const tabContents = document.querySelectorAll('.tab-content');
-        tabContents.forEach(tabContent => {
-          const inputs = tabContent.querySelectorAll('[data-path]');
-          processInputsForDataCollection(inputs, data);
-        });
-      } else {
-        // Collect from regular form
-        const inputs = document.querySelectorAll('[data-path]');
-        processInputsForDataCollection(inputs, data);
-      }
-      
-      return data;
-    }
-    
-    function processInputsForDataCollection(inputs, data) {
-      const processedPaths = new Set();
-      
-      inputs.forEach(input => {
-        const path = input.dataset.path;
-        if (!path || processedPaths.has(path)) return;
-        
-        if (input.classList && input.classList.contains('na-checkbox')) {
-          const naCheckbox = document.getElementById(path + '_na');
-          if (naCheckbox && naCheckbox.checked) {
-            setNestedValue(data, path, naCheckbox.value);
-            processedPaths.add(path);
-          }
-        }
-        else if (input.classList && input.classList.contains('multi-select-checkbox')) {
-          if (!processedPaths.has(path)) {
-            const naCheckbox = document.getElementById(path + '_na');
-            if (naCheckbox && naCheckbox.checked) {
-              setNestedValue(data, path, naCheckbox.value);
-            } else {
-              const checkboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
-              if (checkboxes.length > 0) {
-                setNestedValue(data, path, Array.from(checkboxes).map(cb => cb.value));
-              } else {
-                setNestedValue(data, path, []);
-              }
-            }
-            processedPaths.add(path);
-          }
-        }
-        else if (input.type === 'checkbox' && !input.classList.contains('na-checkbox') && !input.classList.contains('multi-select-checkbox')) {
-          setNestedValue(data, path, input.checked);
-          processedPaths.add(path);
-        }
-        else if (input.type === 'number') {
-          setNestedValue(data, path, input.value ? Number(input.value) : null);
-          processedPaths.add(path);
-        }
-        else if (input.type === 'date'){
-          setNestedValue(data, path, input.value || null);
-          processedPaths.add(path);
-        }
-        else if (input.tagName === 'TEXTAREA' && input.placeholder && input.placeholder.includes('comma-separated')) {
-          const value = input.value.trim() ? input.value.split(',').map(v => v.trim()).filter(v => v) : [];
-          setNestedValue(data, path, value);
-          processedPaths.add(path);
-        }
-        else if (input.tagName === 'SELECT' || (input.tagName === 'INPUT' && input.type === 'text') || (input.tagName === 'INPUT' && input.type === 'email') || input.tagName === 'TEXTAREA') {
-          setNestedValue(data, path, input.value);
-          processedPaths.add(path);
-        }
-      });
-    }
-
-    function populateFormWithData(data) {
-      populateFields(data, []);
-      
-      setTimeout(() => {
-        applyConditionalRules();
-      }, 200);
-      
-      console.log('Form populated with data');
-    }
-
-    function populateFields(data, parentPath) {
-      for (const [key, value] of Object.entries(data)) {
-        const currentPath = [...parentPath, key];
-        const pathStr = currentPath.join('.');
-        
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          populateFields(value, currentPath);
-        } else if (Array.isArray(value)) {
-          if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
-            populateArrayOfObjects(pathStr, value);
-          } else {
-            populateArrayField(pathStr, value);
-          }
-        } else {
-          populateSingleField(pathStr, value);
-        }
-      }
-    }
-
-    function populateSingleField(pathStr, value) {
-      if (value === null || value === undefined) {
-        console.log(`Skipping null/undefined value for ${pathStr}`);
-        return;
-      }
-      
-      const escapedPath = pathStr.replace(/\./g, '_');
-      const container = document.getElementById(`multiselect_${escapedPath}`);
-      
-      if (container) {
-        populateArrayField(pathStr, value);
-        return;
-      }
-      
-      const containers = document.querySelectorAll('.multi-select-container');
-      for (const cont of containers) {
-        const firstCheckbox = cont.querySelector('[data-path]');
-        if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
-          populateArrayField(pathStr, value);
-          return;
-        }
-      }
-      
-      let input = document.querySelector(`select[data-path="${pathStr}"]`);
-      if (input) {
-        const optionExists = Array.from(input.options).some(option => option.value === value);
-        if (optionExists) {
-          input.value = value;
-          input.dispatchEvent(new Event('change'));
-        } else {
-          console.warn(`Value "${value}" not found in dropdown options for ${pathStr}`);
-        }
-        return;
-      }
-      
-      input = document.querySelector(`input[type="text"][data-path="${pathStr}"], input[type="email"][data-path="${pathStr}"]`);
-      if (input) {
-        input.value = value;
-        input.dispatchEvent(new Event('change'));
-        return;
-      }
-      
-      input = document.querySelector(`input[type="number"][data-path="${pathStr}"]`);
-      if (input) {
-        input.value = value;
-        input.dispatchEvent(new Event('change'));
-        return;
-      }
-      
-      input = document.querySelector(`input[type="date"][data-path="${pathStr}"]`);
-      if (input) {
-        input.value = value;
-        input.dispatchEvent(new Event('change'));
-        return;
-      }
-      
-      input = document.querySelector(`input[type="checkbox"][data-path="${pathStr}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
-      if (input) {
-        input.checked = value === true;
-        input.dispatchEvent(new Event('change'));
-        return;
-      }
-      
-      input = document.querySelector(`textarea[data-path="${pathStr}"]`);
-      if (input) {
-        if (Array.isArray(value)) {
-          input.value = value.join(', ');
-        } else {
-          input.value = value;
-        }
-        input.dispatchEvent(new Event('change'));
-        return;
-      }
-      
-      console.warn(`Could not find input for path: ${pathStr}`);
-    }
-
-    function populateArrayField(pathStr, values) {
-      function updateMultiSelectDisplayLocal(dropdownId, path) {
-        const selectedContainer = document.getElementById(dropdownId + '_selected');
-        if (!selectedContainer) return;
-        
-        const naCheckbox = document.getElementById(path + '_na');
-        const selectedCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
-        
-        selectedContainer.innerHTML = '';
-        
-        if (naCheckbox && naCheckbox.checked) {
-          const tag = document.createElement('span');
-          tag.className = 'multi-select-tag';
-          tag.textContent = naCheckbox.value;
-          selectedContainer.appendChild(tag);
-        } else if (selectedCheckboxes.length > 0) {
-          selectedCheckboxes.forEach(cb => {
-            const tag = document.createElement('span');
-            tag.className = 'multi-select-tag';
-            tag.textContent = cb.value;
-            selectedContainer.appendChild(tag);
-          });
-        } else {
-          const placeholder = document.createElement('span');
-          placeholder.className = 'multi-select-placeholder';
-          placeholder.textContent = '-- Select --';
-          selectedContainer.appendChild(placeholder);
-        }
-      }
-      
-      let container = null;
-      
-      const escapedPath = pathStr.replace(/\./g, '_');
-      container = document.getElementById(`multiselect_${escapedPath}`);
-      
-      if (!container) {
-        const allContainers = document.querySelectorAll('.multi-select-container');
-        for (const cont of allContainers) {
-          const firstCheckbox = cont.querySelector('[data-path]');
-          if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
-            container = cont;
-            break;
-          }
-        }
-      }
-      
-      if (container) {
-        const allCheckboxes = document.querySelectorAll(`[data-path="${pathStr}"].multi-select-checkbox`);
-        const naCheckbox = document.getElementById(`${pathStr}_na`);
-        
-        if (allCheckboxes.length === 0) {
-          console.warn(`No multi-select checkboxes found for: ${pathStr}`);
-          return;
-        }
-        
-        allCheckboxes.forEach(cb => {
-          cb.checked = false;
-        });
-        
-        if (naCheckbox) {
-          naCheckbox.checked = false;
-        }
-        
-        const exclusiveOptions = ['None of the listed options', 'Unknown/Unsure', 'N/A'];
-        
-        if (typeof values === 'string') {
-          if (naCheckbox && naCheckbox.value === values) {
-            naCheckbox.checked = true;
-          } 
-          else if (exclusiveOptions.includes(values)) {
-            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
-            if (matchingCheckbox) {
-              matchingCheckbox.checked = true;
-            }
-          }
-          else {
-            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
-            if (matchingCheckbox) {
-              matchingCheckbox.checked = true;
-            } else {
-              console.warn(`No checkbox found for value: "${values}"`);
-            }
-          }
-        } 
-        else if (Array.isArray(values)) {
-          if (values.length > 0) {
-            const hasExclusiveOption = values.some(val => exclusiveOptions.includes(val));
-            
-            if (hasExclusiveOption) {
-              const exclusiveValue = values.find(val => exclusiveOptions.includes(val));
-              
-              if (exclusiveValue === 'N/A' && naCheckbox) {
-                naCheckbox.checked = true;
-              } else {
-                const exclusiveCheckbox = Array.from(allCheckboxes).find(cb => cb.value === exclusiveValue);
-                if (exclusiveCheckbox) {
-                  exclusiveCheckbox.checked = true;
-                }
-              }
-            } else {
-              values.forEach(val => {
-                const checkbox = Array.from(allCheckboxes).find(cb => cb.value === val);
-                if (checkbox) {
-                  checkbox.checked = true;
-                } else {
-                  console.warn(`Checkbox not found for value: "${val}"`);
-                }
-              });
-            }
-          }
-        } 
-        else {
-          console.warn(`Unsupported value type for ${pathStr}:`, typeof values);
-        }
-        
-        updateMultiSelectDisplayLocal(container.id, pathStr);
-        console.log(`Updated display for ${pathStr}`);
-        
-      } else {
-        console.warn(`No multi-select container found for: ${pathStr}`);
-        
-        const inputs = document.querySelectorAll(`[data-path="${pathStr}"]`);
-        
-        if (inputs.length > 0) {
-          const selectInput = document.querySelector(`select[data-path="${pathStr}"]`);
-          if (selectInput) {
-            if (typeof values === 'string') {
-              selectInput.value = values;
-            } else if (Array.isArray(values) && values.length > 0) {
-              selectInput.value = values[0];
-            }
-            selectInput.dispatchEvent(new Event('change'));
-            return;
-          }
-          
-          const textInput = document.querySelector(`input[type="text"][data-path="${pathStr}"], textarea[data-path="${pathStr}"]`);
-          if (textInput) {
-            if (Array.isArray(values)) {
-              textInput.value = values.join(', ');
-            } else {
-              textInput.value = values;
-            }
-            textInput.dispatchEvent(new Event('change'));
-            return;
-          }
-        } else {
-          console.warn(`Could not find any input for path: ${pathStr}`);
-        }
-      }
-    }
-  
-    function populateArrayOfObjects(pathStr, items) {
-      const container = document.getElementById('array_' + pathStr);
-      if (!container) {
-        console.warn(`Array container not found for: ${pathStr}`);
-        return;
-      }
-      
-      const existingItems = container.querySelectorAll('.array-item');
-      existingItems.forEach(item => item.remove());
-      
-      const keys = pathStr.split('.');
-      let currentProp = currentSchema.properties;
-      
-      for (let i = 0; i < keys.length; i++) {
-        if (currentProp[keys[i]]) {
-          if (currentProp[keys[i]].$ref) {
-            currentProp = resolveRef(currentProp[keys[i]].$ref);
-            if (i < keys.length - 1) {
-              currentProp = currentProp.properties;
-            }
-          } else if (i === keys.length - 1) {
-            currentProp = currentProp[keys[i]];
-          } else {
-            currentProp = currentProp[keys[i]].properties;
-          }
-        }
-      }
-      
-      const itemSchema = currentProp.items;
-      
-      items.forEach((itemData, index) => {
-        window.addArrayItem(pathStr, itemSchema);
-        
-        setTimeout(() => {
-          for (const [subKey, subValue] of Object.entries(itemData)) {
-            const itemPath = `${pathStr}.${index}.${subKey}`;
-            populateSingleField(itemPath, subValue);
-          }
-        }, 50);
-      });
-      
-      console.log(`Populated array ${pathStr} with ${items.length} items`);
     }
   </script>
 </body>

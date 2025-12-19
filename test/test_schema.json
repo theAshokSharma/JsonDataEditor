@@ -7,15 +7,18 @@
       "title": "Personal Information",
       "properties": {
         "name": { "type": "string", "title": "Full Name" },
-        "age": { "type": "number", "title": "Age" }
-      }
-    },
-    "contact": {
-      "type": "object",
-      "title": "Contact Details", 
-      "properties": {
-        "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" }
+        "age": { "type": "number", "title": "Age" },
+        "myContacts": {
+          "type": "array",
+          "title": "Contact Details",
+          "items": {
+            "type": "object",
+            "properties": {
+              "email": { "type": "string", "format": "email" },
+              "phone": { "type": "string" }
+            }
+          }
+        }
       }
     }
   }

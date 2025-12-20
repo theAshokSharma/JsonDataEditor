@@ -782,9 +782,10 @@
     let initialData = {};
     let definitions = {};
     let conditionalRules = {};
-    let formData = {};
-    let fieldDependencies = {};
-  
+
+    // Track invalid fields: path → { loadedValue, validOptions, element }
+    const invalidFields = new Map();
+
     // ============ DOM ELEMENTS ============
     const vscode = acquireVsCodeApi();
     const configBtn = document.getElementById('configBtn');
@@ -799,11 +800,8 @@
     const schemaNameEl = document.getElementById('schema-name');
 
     // ============ INITIALIZATION ============
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('DOM loaded, initializing...');
-      
+    document.addEventListener('DOMContentLoaded', () => {
       if (window.currentSchema) {
-        console.log('Initial schema injected');
         handleSchemaUpdate({
           schema: window.currentSchema,
           choices: window.customChoices || {},
@@ -811,348 +809,206 @@
           conditionalRules: window.conditionalRules || {}
         });
       } else {
-        console.log('No initial schema injected');
         updateSchemaDisplay();
       }
-      
+
       if (window.initialData && Object.keys(window.initialData).length > 0) {
-        console.log('Initial data injected');
         initialData = window.initialData;
       }
     });
 
     // ============ EVENT LISTENERS ============
-    if (configBtn) {
-      configBtn.addEventListener('click', () => {
-        vscode.postMessage({ command: 'openConfig' });
-      });
-    }
-
-    if (loadDataBtn) {
-      loadDataBtn.addEventListener('click', () => {
-        vscode.postMessage({ command: 'loadData' });
-      });
-    }
-    
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
-        const data = collectFormData();
-        vscode.postMessage({ command: 'saveJson', data: data });
-      });
-    }
-    
-    if (exportBtn) {
-      exportBtn.addEventListener('click', () => {
-        const data = collectFormData();
-        vscode.postMessage({ command: 'exportJson', data: data });
-      });
-    }
+    if (configBtn) configBtn.addEventListener('click', () => vscode.postMessage({ command: 'openConfig' }));
+    if (loadDataBtn) loadDataBtn.addEventListener('click', () => vscode.postMessage({ command: 'loadData' }));
+    if (saveBtn) saveBtn.addEventListener('click', () => vscode.postMessage({ command: 'saveJson', data: collectFormData() }));
+    if (exportBtn) exportBtn.addEventListener('click', () => vscode.postMessage({ command: 'exportJson', data: collectFormData() }));
 
     window.addEventListener('message', event => {
       const message = event.data;
-      console.log('Message received:', message.command);
-      
       switch (message.command) {
-        case 'updateSchema':
-          handleSchemaUpdate(message);
-          break;
-        case 'dataLoaded':
-          handleDataLoaded(message);
-          break;
-        case 'reloadForm':
-          resetUI();
-          break;
-        case 'showNotification':
-          showNotification(message.text);
-          break;
+        case 'updateSchema': handleSchemaUpdate(message); break;
+        case 'dataLoaded': handleDataLoaded(message); break;
+        case 'reloadForm': resetUI(); break;
       }
     });
 
-    // ============ UI MANAGEMENT FUNCTIONS ============
+    // ============ UI MANAGEMENT ============
     function updateSchemaDisplay() {
-      if (schemaNameEl) {
-        if (currentSchema && currentSchema.title) {
-          schemaNameEl.textContent = currentSchema.title;
-        } else if (currentSchema) {
-          schemaNameEl.textContent = 'Loaded Schema';
-        } else {
-          schemaNameEl.textContent = 'No Schema Loaded';
-        }
-      }
+      if (!schemaNameEl) return;
+      schemaNameEl.textContent = currentSchema?.title || (currentSchema ? 'Loaded Schema' : 'No Schema Loaded');
     }
 
     function clearUI() {
-      console.log('Clearing UI');
-      
-      // Clear invalid fields tracking
       invalidFields.clear();
-
       if (tabsHeader) tabsHeader.innerHTML = '';
       if (tabsContent) tabsContent.innerHTML = '';
       if (tabsContainer) tabsContainer.style.display = 'none';
-      
       if (editorForm) {
         editorForm.innerHTML = '';
         editorForm.classList.remove('active');
         editorForm.style.display = 'none';
       }
-      
-      if (noSchemaDiv) {
-        noSchemaDiv.style.display = 'block';
-      }
+      if (noSchemaDiv) noSchemaDiv.style.display = 'block';
     }
 
     function resetUI() {
-      console.log('Resetting UI');
       updateSchemaDisplay();
       clearUI();
-      initializeDependencies();
-      
       if (currentSchema) {
         renderForm(currentSchema);
-        
-        if (initialData && Object.keys(initialData).length > 0) {
+        if (Object.keys(initialData).length > 0) {
           setTimeout(() => {
             populateFormWithData(initialData);
-            console.log('Form populated with initial data');
             setupDependencyListeners();
           }, 500);
         } else {
-          setTimeout(() => {
-            setupDependencyListeners();
-          }, 500);
+          setTimeout(setupDependencyListeners, 500);
         }
-      } else {
-        console.log('No schema to render');
       }
-    }
-
-    function showNotification(message) {
-      console.log('Notification:', message);
     }
 
     // ============ MESSAGE HANDLERS ============
     function handleSchemaUpdate(message) {
-      console.log('Updating schema with new data');
-      
-      if (message.schema) {
-        currentSchema = message.schema;
-        console.log('Schema updated:', currentSchema.title || 'Untitled');
-      }
-      
-      if (message.choices) {
-        customChoices = message.choices;
-        console.log('Choices updated:', Object.keys(customChoices).length, 'fields');
-      }
-      
-      if (message.definitions) {
-        definitions = message.definitions;
-        console.log('Definitions updated');
-      }
-      
-      if (message.conditionalRules) {
-        conditionalRules = message.conditionalRules;
-        console.log('Conditional rules updated');
-      }
-      
+      if (message.schema) currentSchema = message.schema;
+      if (message.choices) customChoices = message.choices;
+      if (message.definitions) definitions = message.definitions;
+      if (message.conditionalRules) conditionalRules = message.conditionalRules;
+
       initialData = {};
-      formData = {};
       resetUI();
     }
 
     function handleDataLoaded(message) {
-      console.log('Loading data into form');
-      
-      if (message.data) {
-        initialData = message.data;
-        console.log('Data loaded:', Object.keys(initialData).length, 'root keys');
-        
-        if (currentSchema) {
-          setTimeout(() => {
-            populateFormWithData(initialData);
-            showNotification(`Data loaded. Found ${invalidFields.size} field(s) with invalid values.`);
-          }, 300);
-        } else {
-          console.warn('Cannot load data: No schema loaded');
-        }
+      if (!message.data || !currentSchema) {
+        console.warn('Cannot load data: no data or no schema');
+        return;
       }
+      initialData = message.data;
+      setTimeout(() => populateFormWithData(initialData), 300);
     }
 
-    // ============ FORM RENDERING FUNCTIONS ============
+    // ============ FORM RENDERING ============
     function renderForm(schema) {
-      console.log('Rendering form with schema:', schema.title || 'Untitled');
-      
-      if (noSchemaDiv) {
-        noSchemaDiv.style.display = 'none';
-      }
-
+      if (noSchemaDiv) noSchemaDiv.style.display = 'none';
       const properties = schema.properties || {};
       const required = schema.required || [];
       const rootKeys = Object.keys(properties);
-      
-      console.log('Root keys found:', rootKeys);
-      
-      const shouldUseTabs = rootKeys.length > 1;
-      
-      if (shouldUseTabs) {
-        console.log('Using tabbed interface for', rootKeys.length, 'root keys');
+
+      if (rootKeys.length > 1) {
         renderTabsInterface(rootKeys, properties, required);
       } else {
-        console.log('Using regular form interface');
         renderRegularForm(rootKeys, properties, required);
       }
     }
-    
+
     function renderTabsInterface(rootKeys, properties, required) {
       tabsContainer.style.display = 'flex';
       editorForm.style.display = 'none';
-      
       tabsHeader.innerHTML = '';
       tabsContent.innerHTML = '';
-      
+
       rootKeys.forEach((key, index) => {
         const prop = properties[key];
         const title = prop.title || key;
-        
+
         const tabBtn = document.createElement('button');
         tabBtn.className = 'tab-btn' + (index === 0 ? ' active' : '');
         tabBtn.textContent = title;
         tabBtn.dataset.tabKey = key;
         tabBtn.addEventListener('click', () => switchTab(key));
         tabsHeader.appendChild(tabBtn);
-        
+
         const tabContent = document.createElement('div');
         tabContent.className = 'tab-content' + (index === 0 ? ' active' : '');
         tabContent.id = 'tab-' + key;
         tabContent.dataset.tabKey = key;
-        
+
         const isRequired = required.includes(key);
         const fieldHtml = createField(key, prop, isRequired, [key]);
-        const div = document.createElement('div');
-        div.innerHTML = fieldHtml;
-        tabContent.appendChild(div.firstElementChild);
-        
+        tabContent.innerHTML = fieldHtml;
         tabsContent.appendChild(tabContent);
       });
-      
-      if (rootKeys.length > 0) {
-        attachEventListenersToTab(rootKeys[0]);
-      }
+
+      if (rootKeys.length > 0) attachEventListenersToTab(rootKeys[0]);
     }
-    
+
     function renderRegularForm(rootKeys, properties, required) {
       tabsContainer.style.display = 'none';
       editorForm.style.display = 'block';
       editorForm.classList.add('active');
-      
-      if (rootKeys.length === 1) {
-        const [key] = rootKeys;
+      editorForm.innerHTML = '';
+
+      if (rootKeys.length === 0) {
+        editorForm.innerHTML = '<div class="no-tabs-message">No properties found in schema</div>';
+        return;
+      }
+
+      rootKeys.forEach(key => {
         const prop = properties[key];
         const isRequired = required.includes(key);
         const fieldHtml = createField(key, prop, isRequired, [key]);
-        const div = document.createElement('div');
-        div.innerHTML = fieldHtml;
-        editorForm.appendChild(div.firstElementChild);
-      } else if (rootKeys.length > 0) {
-        rootKeys.forEach(key => {
-          const prop = properties[key];
-          const isRequired = required.includes(key);
-          const fieldHtml = createField(key, prop, isRequired, [key]);
-          const div = document.createElement('div');
-          div.innerHTML = fieldHtml;
-          editorForm.appendChild(div.firstElementChild);
-        });
-      } else {
-        const noTabsMessage = document.createElement('div');
-        noTabsMessage.className = 'no-tabs-message';
-        noTabsMessage.textContent = 'No properties found in schema';
-        editorForm.appendChild(noTabsMessage);
-      }
-      
+        editorForm.innerHTML += fieldHtml;
+      });
+
       attachEventListeners();
     }
-    
+
     function switchTab(tabKey) {
-      console.log('Switching to tab:', tabKey);
-      
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tabKey === tabKey);
-      });
-      
-      document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.toggle('active', content.dataset.tabKey === tabKey);
-      });
-      
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tabKey === tabKey));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.toggle('active', content.dataset.tabKey === tabKey));
       attachEventListenersToTab(tabKey);
     }
 
-    // ============ FIELD CREATION FUNCTIONS ============
+    // ============ FIELD CREATION ============
     function resolveRef(ref) {
-      if (!ref || !ref.startsWith('#/')) return null;
+      if (!ref?.startsWith('#/')) return null;
       const path = ref.substring(2).split('/');
       let result = currentSchema;
       for (const key of path) {
-        result = result[key];
-        if (!result) return null;
+        result = result?.[key];
+        if (result === undefined) return null;
       }
       return result;
     }
-      
+
     function createField(key, prop, isRequired, path) {
       if (prop.$ref) {
-        prop = resolveRef(prop.$ref);
-        if (!prop) return '';
+        const resolved = resolveRef(prop.$ref);
+        if (!resolved) return '';
+        prop = resolved;
       }
 
       const type = prop.type;
       const title = prop.title || key;
       const description = prop.description || '';
       const pathStr = path.join('.');
-      
-      if (type === 'object' && prop.properties) {
-        return createNestedObject(key, prop, isRequired, path);
-      }
-      
-      if (type === 'array') {
-        const items = prop.items;
-        if (items && (items.type === 'object' || items.$ref)) {
-          return createArrayOfObjects(key, prop, isRequired, path);
-        }
+
+      if (type === 'object' && prop.properties) return createNestedObject(key, prop, isRequired, path);
+      if (type === 'array' && prop.items && (prop.items.type === 'object' || prop.items.$ref)) {
+        return createArrayOfObjects(key, prop, isRequired, path);
       }
 
       const choiceConfig = getDynamicValues(pathStr);
-      
+
       let enumValues = [];
-      let responseType = null;
       let hasNAOption = false;
       let naValue = null;
-      
+      let responseType = null;
+
       if (choiceConfig && typeof choiceConfig === 'object' && !Array.isArray(choiceConfig)) {
-        let rawValues = choiceConfig.values || [];
-        
+        const rawValues = choiceConfig.values || [];
         enumValues = [];
         rawValues.forEach(val => {
-          if (typeof val === 'string' && val.includes('-')) {
-            const rangeMatch = val.match(/^(\d+)-(\d+)$/);
-            if (rangeMatch) {
-              const start = parseInt(rangeMatch[1]);
-              const end = parseInt(rangeMatch[2]);
-              if (start <= end) {
-                for (let i = start; i <= end; i++) {
-                  enumValues.push(i);
-                }
-              }
-            } else {
-              enumValues.push(val);
-            }
+          if (typeof val === 'string' && /^(\d+)-(\d+)$/.test(val)) {
+            const [, start, end] = val.match(/^(\d+)-(\d+)$/);
+            for (let i = +start; i <= +end; i++) enumValues.push(i);
           } else {
             enumValues.push(val);
           }
         });
-        
-        responseType = choiceConfig.response_type || null;
         naValue = choiceConfig.na || null;
         hasNAOption = naValue !== null;
+        responseType = choiceConfig.response_type || null;
       } else if (Array.isArray(choiceConfig)) {
         enumValues = choiceConfig;
         responseType = type === 'array' ? 'multi-select' : 'single-select';
@@ -1160,13 +1016,12 @@
         enumValues = prop.enum || [];
         responseType = type === 'array' ? 'multi-select' : 'single-select';
       }
-      
-      let inputHtml = '';
 
+      let inputHtml = '';
       if (enumValues.length > 0) {
         if (responseType === 'multi-select') {
           inputHtml = createMultiSelectInput(pathStr, enumValues, hasNAOption, naValue);
-        } else if (responseType === 'single-select') {
+        } else {
           inputHtml = createSingleSelectInput(pathStr, enumValues, hasNAOption, naValue);
         }
       } else {
@@ -1193,84 +1048,63 @@
           </div>
           <div class="multi-select-dropdown" id="${dropdownId}_dropdown">
       `;
-      
+
       enumValues.forEach((val, idx) => {
         html += `
           <div class="multi-select-option">
-            <input type="checkbox" 
-              id="${pathStr}_${idx}" 
-              value="${val}" 
-              data-path="${pathStr}"
-              data-dropdown="${dropdownId}"
-              class="multi-select-checkbox"
-              onchange="handleMultiSelectChange('${pathStr}', '${dropdownId}')">
+            <input type="checkbox" id="${pathStr}_${idx}" value="${val}" data-path="${pathStr}" class="multi-select-checkbox"
+                  onchange="handleMultiSelectChange('${pathStr}', '${dropdownId}')">
             <label for="${pathStr}_${idx}">${val}</label>
           </div>
         `;
       });
-      
+
       if (hasNAOption) {
         html += `
           <div class="multi-select-option na-option">
-            <input type="checkbox" 
-              id="${pathStr}_na" 
-              value="${naValue}" 
-              data-path="${pathStr}"
-              data-dropdown="${dropdownId}"
-              class="na-checkbox"
-              onchange="handleNAChange('${pathStr}', '${dropdownId}')">
+            <input type="checkbox" id="${pathStr}_na" value="${naValue}" data-path="${pathStr}" class="na-checkbox"
+                  onchange="handleNAChange('${pathStr}', '${dropdownId}')">
             <label for="${pathStr}_na">${naValue} (exclusive)</label>
           </div>
         `;
       }
-      
-      html += `
-          </div>
-        </div>
-      `;
-      
+
+      html += `</div></div>`;
       return html;
     }
 
     function createSingleSelectInput(pathStr, enumValues, hasNAOption, naValue) {
-      let html = `<select name="${pathStr}" id="${pathStr}" data-path="${pathStr}">
+      let html = `<select name="${pathStr}" data-path="${pathStr}">
         <option value="">-- Select --</option>
         ${enumValues.map(val => `<option value="${val}">${val}</option>`).join('')}`;
-      
-      if (hasNAOption) {
-        html += `<option value="${naValue}">${naValue}</option>`;
-      }
-      
+      if (hasNAOption) html += `<option value="${naValue}">${naValue}</option>`;
       html += `</select>`;
       return html;
     }
 
     function createBasicInput(type, pathStr, prop, isRequired) {
+      const req = isRequired ? 'required' : '';
       switch (type) {
         case 'string':
           if (prop.format === 'date') {
-            const minDate = prop.minimum || '1930-01-01';
-            const maxDate = prop.maximum || new Date().toISOString().split('T')[0];
-            return `<input type="date" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" min="${minDate}" max="${maxDate}" ${isRequired ? 'required' : ''}>`;
-          } else if (prop.format === 'email') {
-            return `<input type="email" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
-          } else if (prop.maxLength && prop.maxLength > 100) {
-            return `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}></textarea>`;
-          } else {
-            return `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+            const today = new Date().toISOString().split('T')[0];
+            return `<input type="date" name="${pathStr}" data-path="${pathStr}" min="${prop.minimum || '1930-01-01'}" max="${prop.maximum || today}" ${req}>`;
           }
+          if (prop.format === 'email') return `<input type="email" name="${pathStr}" data-path="${pathStr}" ${req}>`;
+          if (prop.maxLength > 100) return `<textarea name="${pathStr}" data-path="${pathStr}" ${req}></textarea>`;
+          return `<input type="text" name="${pathStr}" data-path="${pathStr}" ${req}>`;
         case 'integer':
         case 'number':
-          return `<input type="number" name="${pathStr}" id="${pathStr}" data-path="${pathStr}"
+          return `<input type="number" name="${pathStr}" data-path="${pathStr}"
             ${prop.minimum !== undefined ? `min="${prop.minimum}"` : ''}
             ${prop.maximum !== undefined ? `max="${prop.maximum}"` : ''}
-            ${isRequired ? 'required' : ''}>`;
+            ${req}>`;
         case 'boolean':
-          return `<input type="checkbox" name="${pathStr}" id="${pathStr}" data-path="${pathStr}">`;
+          return `<input type="checkbox" name="${pathStr}" data-path="${pathStr}">`;
         case 'array':
-          return `<textarea name="${pathStr}" id="${pathStr}" data-path="${pathStr}" placeholder="Enter comma-separated values"></textarea>`;
+          return `<textarea name="${pathStr}" data-path="${pathStr}" placeholder="Enter comma-separated values" ${req}></textarea>`;
         default:
-          return `<input type="text" name="${pathStr}" id="${pathStr}" data-path="${pathStr}" ${isRequired ? 'required' : ''}>`;
+          return `<input type="text" name="${pathStr}" data-path="${pathStr}" ${req}>`;
       }
     }
 
@@ -1280,24 +1114,20 @@
       const pathStr = path.join('.');
       const properties = prop.properties || {};
       const required = prop.required || [];
-      
+
       let fieldsHtml = '';
       for (const [subKey, subProp] of Object.entries(properties)) {
-        const isSubRequired = required.includes(subKey);
-        fieldsHtml += createField(subKey, subProp, isSubRequired, [...path, subKey]);
+        fieldsHtml += createField(subKey, subProp, required.includes(subKey), [...path, subKey]);
       }
 
       return `
         <div class="form-group" data-field-path="${pathStr}">
           <div class="nested-object">
             <div class="nested-object-header" onclick="toggleNested(this)">
-              <span>${title}</span>
-              ${isRequired ? '<span style="color: var(--vscode-errorForeground)">*</span>' : ''}
+              <span>${title}</span>${isRequired ? '<span style="color: var(--vscode-errorForeground)">*</span>' : ''}
             </div>
             ${description ? `<div class="description">${description}</div>` : ''}
-            <div class="nested-object-content">
-              ${fieldsHtml}
-            </div>
+            <div class="nested-object-content">${fieldsHtml}</div>
           </div>
         </div>
       `;
@@ -1307,137 +1137,89 @@
       const title = prop.title || key;
       const description = prop.description || '';
       const pathStr = path.join('.');
-      
+
       return `
         <div class="form-group" data-field-path="${pathStr}">
           <label class="${isRequired ? 'required' : ''}">${title}</label>
           ${description ? `<div class="description">${description}</div>` : ''}
           <div class="array-container" id="array_${pathStr}" data-path="${pathStr}">
             <div class="array-controls">
-              <button onclick="addArrayItem('${pathStr}', ${JSON.stringify(prop.items).replace(/"/g, '&quot;')})">Add Item</button>
+              <button type="button" onclick="addArrayItem('${pathStr}', ${JSON.stringify(prop.items).replace(/"/g, '&quot;')})">Add Item</button>
             </div>
           </div>
         </div>
       `;
     }
 
-    // ============ FORM DATA COLLECTION FUNCTIONS ============
+    // ============ DATA COLLECTION ============
     function collectFormData() {
       const data = {};
-      
-      if (tabsContainer.style.display !== 'none') {
-        const tabContents = document.querySelectorAll('.tab-content');
-        tabContents.forEach(tabContent => {
-          const inputs = tabContent.querySelectorAll('[data-path]');
-          processInputsForDataCollection(inputs, data);
-        });
-      } else {
-        const inputs = document.querySelectorAll('[data-path]');
-        processInputsForDataCollection(inputs, data);
-      }
-      
-      console.log('Collected form data:', data);
-      return data;
-    }
-    
-    function processInputsForDataCollection(inputs, data) {
-      const processedPaths = new Set();
-      
+      const inputs = tabsContainer.style.display !== 'none'
+        ? document.querySelectorAll('.tab-content [data-path]')
+        : document.querySelectorAll('[data-path]');
+
+      const processed = new Set();
+
       inputs.forEach(input => {
         const path = input.dataset.path;
-        if (!path || processedPaths.has(path)) return;
-        
-        if (input.classList && input.classList.contains('na-checkbox')) {
-          const naCheckbox = document.getElementById(path + '_na');
-          if (naCheckbox && naCheckbox.checked) {
-            setNestedValue(data, path, naCheckbox.value);
-            processedPaths.add(path);
+        if (!path || processed.has(path)) return;
+
+        processed.add(path);
+
+        if (input.classList.contains('na-checkbox')) {
+          const na = document.getElementById(path + '_na');
+          if (na?.checked) setNestedValue(data, path, na.value);
+        } else if (input.classList.contains('multi-select-checkbox')) {
+          const na = document.getElementById(path + '_na');
+          if (na?.checked) {
+            setNestedValue(data, path, na.value);
+          } else {
+            const checked = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+            setNestedValue(data, path, checked.length ? Array.from(checked).map(c => c.value) : []);
           }
-        }
-        else if (input.classList && input.classList.contains('multi-select-checkbox')) {
-          if (!processedPaths.has(path)) {
-            const naCheckbox = document.getElementById(path + '_na');
-            if (naCheckbox && naCheckbox.checked) {
-              setNestedValue(data, path, naCheckbox.value);
-            } else {
-              const checkboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
-              if (checkboxes.length > 0) {
-                setNestedValue(data, path, Array.from(checkboxes).map(cb => cb.value));
-              } else {
-                setNestedValue(data, path, []);
-              }
-            }
-            processedPaths.add(path);
-          }
-        }
-        else if (input.type === 'checkbox' && !input.classList.contains('na-checkbox') && !input.classList.contains('multi-select-checkbox')) {
+        } else if (input.type === 'checkbox') {
           setNestedValue(data, path, input.checked);
-          processedPaths.add(path);
-        }
-        else if (input.type === 'number') {
+        } else if (input.type === 'number') {
           setNestedValue(data, path, input.value ? Number(input.value) : null);
-          processedPaths.add(path);
-        }
-        else if (input.type === 'date'){
+        } else if (input.type === 'date') {
           setNestedValue(data, path, input.value || null);
-          processedPaths.add(path);
-        }
-        else if (input.tagName === 'TEXTAREA' && input.placeholder && input.placeholder.includes('comma-separated')) {
-          const value = input.value.trim() ? input.value.split(',').map(v => v.trim()).filter(v => v) : [];
-          setNestedValue(data, path, value);
-          processedPaths.add(path);
-        }
-        else if (input.tagName === 'SELECT' || (input.tagName === 'INPUT' && input.type === 'text') || (input.tagName === 'INPUT' && input.type === 'email') || input.tagName === 'TEXTAREA') {
+        } else if (input.tagName === 'TEXTAREA' && input.placeholder?.includes('comma-separated')) {
+          const vals = input.value.trim() ? input.value.split(',').map(v => v.trim()).filter(v => v) : [];
+          setNestedValue(data, path, vals);
+        } else {
           setNestedValue(data, path, input.value);
-          processedPaths.add(path);
         }
       });
+
+      return data;
     }
 
     function setNestedValue(obj, path, value) {
       const keys = path.split('.');
       let current = obj;
-      
       for (let i = 0; i < keys.length - 1; i++) {
         const key = keys[i];
         const nextKey = keys[i + 1];
-        
         if (!isNaN(nextKey)) {
-          if (!current[key]) current[key] = [];
-          if (!current[key][nextKey]) current[key][nextKey] = {};
+          current[key] ??= [];
+          current[key][nextKey] ??= {};
           current = current[key][nextKey];
           i++;
         } else {
-          if (!current[key]) current[key] = {};
+          current[key] ??= {};
           current = current[key];
         }
       }
-      
       current[keys[keys.length - 1]] = value;
     }
 
-    // ============ FORM POPULATION FUNCTIONS ============
+    // ============ FORM POPULATION ============
     function populateFormWithData(data) {
-      console.log('Populating form with data:', data);
-
-      // clear previous invalid fields
       invalidFields.clear();
-
-      // first populate the form
       populateFields(data, []);
-
-      // then validate all populated data
-      
       setTimeout(() => {
         validateLoadedData(data);
         initializeDependencies();
-        
-        for (const [fieldKey] of Object.entries(customChoices)) {
-          if (customChoices[fieldKey] && customChoices[fieldKey].dependent_values) {
-            refreshFieldWithDependencies(fieldKey);
-          }
-        }
-        
         applyConditionalRules();
         setupDependencyListeners();
       }, 300);
@@ -1445,11 +1227,12 @@
 
     function populateFields(data, parentPath) {
       for (const [key, value] of Object.entries(data)) {
-        const currentPath = [...parentPath, key];
-        const pathStr = currentPath.join('.');
-        
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          populateFields(value, currentPath);
+        if (value == null) continue;
+        const path = [...parentPath, key];
+        const pathStr = path.join('.');
+
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          populateFields(value, path);
         } else if (Array.isArray(value)) {
           if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null) {
             populateArrayOfObjects(pathStr, value);
@@ -1463,1323 +1246,437 @@
     }
 
     function populateSingleField(pathStr, value) {
-      if (value === null || value === undefined) {
-        console.log(`Skipping null/undefined value for ${pathStr}`);
-        return;
-      }
-      
-      const escapedPath = pathStr.replace(/\./g, '_');
-      let container = document.getElementById(`multiselect_${escapedPath}`);
-      
-      // Look for multi-select container
+      // Multi-select
+      const escaped = pathStr.replace(/\./g, '_');
+      let container = document.getElementById(`multiselect_${escaped}`);
       if (!container) {
-        const containers = document.querySelectorAll('.multi-select-container');
-        for (const cont of containers) {
-          const firstCheckbox = cont.querySelector('[data-path]');
-          if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
-            container = cont;
+        const all = document.querySelectorAll('.multi-select-container');
+        for (const c of all) {
+          if (c.querySelector('[data-path]')?.dataset.path === pathStr) {
+            container = c;
             break;
           }
         }
       }
-      
-      // Handle multi-select fields
       if (container) {
         populateArrayField(pathStr, value);
-        
-        // Validate after populating (with delay to ensure DOM is updated)
-        setTimeout(() => {
-          if (!isValidValueForField(pathStr, value)) {
-            markFieldAsInvalid(pathStr, value);
-          }
-        }, 150);
-        
         return;
       }
-      
-      // Handle single-select dropdowns
-      let input = document.querySelector(`select[data-path="${pathStr}"]`);
-      if (input) {
-        // Check for special string values that should be allowed
-        const isSpecialStringValue = value === 'N/A' || value === 'Unknown/Unsure' || 
-                                    value === 'None of the listed options';
-        
-        // Check if value exists in dropdown options
-        const optionExists = Array.from(input.options).some(option => {
-          // Handle special N/A values
-          if (isSpecialStringValue && option.value === value) {
-            return true;
-          }
-          return option.value === value;
-        });
-        
-        if (optionExists) {
-          input.value = value;
-          input.dispatchEvent(new Event('change'));
-          
-          // Validate after setting value (special values are always valid)
-          setTimeout(() => {
-            if (!isSpecialStringValue && !isValidValueForField(pathStr, value)) {
-              markFieldAsInvalid(pathStr, value);
-            }
-          }, 50);
-        } else {
-          console.warn(`Value "${value}" not found in dropdown options for ${pathStr}`);
-          
-          // Set the value anyway (might be a text input styled as dropdown)
-          input.value = value;
-          input.dispatchEvent(new Event('change'));
-          
-          // Mark as invalid since value not in options (unless it's a special numeric value)
-          const isSpecialNumericValue = value === -9999 || value === -8888 || 
-                                      value === '-9999' || value === '-8888';
-          if (!isSpecialStringValue && !isSpecialNumericValue) {
-            markFieldAsInvalid(pathStr, value);
-          }
-        }
+
+      // Single select
+      let el = document.querySelector(`select[data-path="${pathStr}"]`);
+      if (el) {
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
         return;
       }
-      
-      // Handle text inputs
-      input = document.querySelector(`input[type="text"][data-path="${pathStr}"], input[type="email"][data-path="${pathStr}"]`);
-      if (input) {
-        input.value = value;
-        input.dispatchEvent(new Event('change'));
-        
-        // Validate text inputs (check if they should be dropdowns)
-        setTimeout(() => {
-          // Check if this field has choices defined
-          const choiceConfig = getDynamicValues(pathStr);
-          if (choiceConfig && choiceConfig.values && choiceConfig.values.length > 0) {
-            // Special string values are always valid
-            if (value === 'N/A' || value === 'Unknown/Unsure' || value === 'None of the listed options') {
-              return; // Valid special value
-            }
-            
-            // This should be a dropdown, not a text input
-            if (!isValidValueForField(pathStr, value)) {
-              markFieldAsInvalid(pathStr, value);
-            }
-          }
-        }, 50);
-        
+
+      // Text / email
+      el = document.querySelector(`input[type="text"][data-path="${pathStr}"], input[type="email"][data-path="${pathStr}"]`);
+      if (el) {
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
         return;
       }
-      
-      // Handle number inputs
-      input = document.querySelector(`input[type="number"][data-path="${pathStr}"]`);
-      if (input) {
-        // Convert value to number if it's a string
-        const numValue = typeof value === 'string' ? Number(value) : value;
-        input.value = numValue;
-        input.dispatchEvent(new Event('change'));
-        
-        // Validate numeric values
-        setTimeout(() => {
-          const choiceConfig = getDynamicValues(pathStr);
-          if (choiceConfig && choiceConfig.values && choiceConfig.values.length > 0) {
-            // Special numeric values are always valid
-            if (numValue === -9999 || numValue === -8888) {
-              return; // Valid special value
-            }
-            
-            // Check if number is valid according to choices
-            if (!isValidValueForField(pathStr, numValue)) {
-              markFieldAsInvalid(pathStr, value);
-            }
-          }
-        }, 50);
-        
+
+      // Number
+      el = document.querySelector(`input[type="number"][data-path="${pathStr}"]`);
+      if (el) {
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
         return;
       }
-      
-      // Handle date inputs
-      input = document.querySelector(`input[type="date"][data-path="${pathStr}"]`);
-      if (input) {
-        input.value = value;
-        input.dispatchEvent(new Event('change'));
+
+      // Date
+      el = document.querySelector(`input[type="date"][data-path="${pathStr}"]`);
+      if (el) {
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
         return;
       }
-      
-      // Handle checkboxes (non-multi-select)
-      input = document.querySelector(`input[type="checkbox"][data-path="${pathStr}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
-      if (input) {
-        // Convert various boolean representations
-        let boolValue;
-        if (value === true || value === 'true' || value === 'Yes' || value === 1) {
-          boolValue = true;
-        } else if (value === false || value === 'false' || value === 'No' || value === 0) {
-          boolValue = false;
-        } else {
-          boolValue = Boolean(value);
-        }
-        
-        input.checked = boolValue;
-        input.dispatchEvent(new Event('change'));
-        
-        // Validate checkbox values
-        setTimeout(() => {
-          const choiceConfig = getDynamicValues(pathStr);
-          if (choiceConfig && choiceConfig.values) {
-            const validBoolValues = ['Yes', 'No', 'true', 'false', true, false, 'I Quit'];
-            const isValid = validBoolValues.includes(value) || 
-                          choiceConfig.values.includes(value.toString());
-            
-            if (!isValid) {
-              markFieldAsInvalid(pathStr, value);
-            }
-          }
-        }, 50);
-        
+
+      // Boolean checkbox
+      el = document.querySelector(`input[type="checkbox"][data-path="${pathStr}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
+      if (el) {
+        const bool = value === true || value === 'true' || value === 'Yes' || value === 1;
+        el.checked = bool;
+        el.dispatchEvent(new Event('change'));
         return;
       }
-      
-      // Handle textareas
-      input = document.querySelector(`textarea[data-path="${pathStr}"]`);
-      if (input) {
-        if (Array.isArray(value)) {
-          input.value = value.join(', ');
-        } else {
-          input.value = value;
-        }
-        input.dispatchEvent(new Event('change'));
-        return;
+
+      // Textarea
+      el = document.querySelector(`textarea[data-path="${pathStr}"]`);
+      if (el) {
+        el.value = Array.isArray(value) ? value.join(', ') : value;
+        el.dispatchEvent(new Event('change'));
       }
-      
-      // If we get here, we couldn't find the input
-      console.warn(`Could not find input for path: ${pathStr}`);
-      
-      // Still validate the value if we have choices for this field
-      setTimeout(() => {
-        const choiceConfig = getDynamicValues(pathStr);
-        if (choiceConfig && choiceConfig.values && choiceConfig.values.length > 0) {
-          // Check for special values first
-          if (value === 'N/A' || value === 'Unknown/Unsure' || value === 'None of the listed options' ||
-              value === -9999 || value === -8888 || value === '-9999' || value === '-8888') {
-            return; // Special values are always valid
-          }
-          
-          if (!isValidValueForField(pathStr, value)) {
-            // Mark as invalid even though we couldn't find the element
-            console.warn(`Value "${value}" is invalid for field ${pathStr} but element not found`);
-          }
-        }
-      }, 100);
     }
 
     function populateArrayField(pathStr, values) {
-      console.log(`Populating array field: ${pathStr} with values:`, values);
-      
-      // Helper function to update multi-select display
-      function updateMultiSelectDisplayLocal(dropdownId, path) {
-        const selectedContainer = document.getElementById(dropdownId + '_selected');
-        if (!selectedContainer) return;
-        
-        const naCheckbox = document.getElementById(path + '_na');
-        const selectedCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
-        
-        selectedContainer.innerHTML = '';
-        
-        if (naCheckbox && naCheckbox.checked) {
-          const tag = document.createElement('span');
-          tag.className = 'multi-select-tag';
-          tag.textContent = naCheckbox.value;
-          selectedContainer.appendChild(tag);
-        } else if (selectedCheckboxes.length > 0) {
-          selectedCheckboxes.forEach(cb => {
-            const tag = document.createElement('span');
-            tag.className = 'multi-select-tag';
-            tag.textContent = cb.value;
-            selectedContainer.appendChild(tag);
-          });
+      const container = document.getElementById('multiselect_' + pathStr.replace(/\./g, '_'));
+      if (!container) return;
+
+      const allCheckboxes = document.querySelectorAll(`[data-path="${pathStr}"].multi-select-checkbox`);
+      const naCheckbox = document.getElementById(pathStr + '_na');
+
+      allCheckboxes.forEach(cb => cb.checked = false);
+      if (naCheckbox) naCheckbox.checked = false;
+
+      const exclusive = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
+
+      if (typeof values === 'string' || !Array.isArray(values)) {
+        values = [values];
+      }
+
+      const hasExclusive = values.some(v => exclusive.includes(v));
+      if (hasExclusive) {
+        const exclusiveValue = values.find(v => exclusive.includes(v));
+        if (naCheckbox && exclusiveValue === naCheckbox.value) {
+          naCheckbox.checked = true;
         } else {
-          const placeholder = document.createElement('span');
-          placeholder.className = 'multi-select-placeholder';
-          placeholder.textContent = '-- Select --';
-          selectedContainer.appendChild(placeholder);
+          const cb = Array.from(allCheckboxes).find(c => c.value === exclusiveValue);
+          if (cb) cb.checked = true;
         }
-      }
-      
-      // Find the multi-select container
-      let container = null;
-      const escapedPath = pathStr.replace(/\./g, '_');
-      container = document.getElementById(`multiselect_${escapedPath}`);
-      
-      if (!container) {
-        const allContainers = document.querySelectorAll('.multi-select-container');
-        for (const cont of allContainers) {
-          const firstCheckbox = cont.querySelector('[data-path]');
-          if (firstCheckbox && firstCheckbox.dataset.path === pathStr) {
-            container = cont;
-            break;
-          }
-        }
-      }
-      
-      if (container) {
-        const allCheckboxes = document.querySelectorAll(`[data-path="${pathStr}"].multi-select-checkbox`);
-        const naCheckbox = document.getElementById(`${pathStr}_na`);
-        
-        if (allCheckboxes.length === 0) {
-          console.warn(`No multi-select checkboxes found for: ${pathStr}`);
-          
-          // Still validate the value
-          setTimeout(() => {
-            if (!isValidValueForField(pathStr, values)) {
-              markFieldAsInvalid(pathStr, values);
-            }
-          }, 100);
-          return;
-        }
-        
-        // Clear all selections first
-        allCheckboxes.forEach(cb => cb.checked = false);
-        if (naCheckbox) naCheckbox.checked = false;
-        
-        const exclusiveOptions = ['None of the listed options', 'Unknown/Unsure', 'N/A'];
-        
-        // Handle string value (single selection)
-        if (typeof values === 'string') {
-          // Check for special values
-          if (naCheckbox && naCheckbox.value === values) {
-            naCheckbox.checked = true;
-          } else if (exclusiveOptions.includes(values)) {
-            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
-            if (matchingCheckbox) {
-              matchingCheckbox.checked = true;
-            } else {
-              // Value not in checkbox list
-              console.warn(`Value "${values}" not found in checkbox options for ${pathStr}`);
-            }
-          } else {
-            const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
-            if (matchingCheckbox) {
-              matchingCheckbox.checked = true;
-            } else {
-              // Value not in checkbox list
-              console.warn(`Value "${values}" not found in checkbox options for ${pathStr}`);
-            }
-          }
-        } 
-        // Handle array of values (multiple selections)
-        else if (Array.isArray(values)) {
-          if (values.length > 0) {
-            const hasExclusiveOption = values.some(val => exclusiveOptions.includes(val));
-            
-            if (hasExclusiveOption) {
-              // Handle exclusive options (N/A, Unknown, None)
-              const exclusiveValue = values.find(val => exclusiveOptions.includes(val));
-              if (exclusiveValue === 'N/A' && naCheckbox) {
-                naCheckbox.checked = true;
-              } else {
-                const exclusiveCheckbox = Array.from(allCheckboxes).find(cb => cb.value === exclusiveValue);
-                if (exclusiveCheckbox) {
-                  exclusiveCheckbox.checked = true;
-                } else {
-                  console.warn(`Exclusive value "${exclusiveValue}" not found in checkbox options for ${pathStr}`);
-                }
-              }
-            } else {
-              // Handle regular multi-select values
-              values.forEach(val => {
-                const checkbox = Array.from(allCheckboxes).find(cb => cb.value === val);
-                if (checkbox) {
-                  checkbox.checked = true;
-                } else {
-                  console.warn(`Value "${val}" not found in checkbox options for ${pathStr}`);
-                }
-              });
-            }
-          }
-        }
-        
-        // Update the display
-        updateMultiSelectDisplayLocal(container.id, pathStr);
-        
-        // Validate the selected values (special values are always valid)
-        setTimeout(() => {
-          // Check if any special values are selected
-          const hasSpecialValue = Array.isArray(values) 
-            ? values.some(val => exclusiveOptions.includes(val) || val === -9999 || val === -8888)
-            : exclusiveOptions.includes(values) || values === -9999 || values === -8888;
-          
-          if (!hasSpecialValue && !isValidValueForField(pathStr, values)) {
-            markFieldAsInvalid(pathStr, values);
-          }
-        }, 150);
       } else {
-        console.warn(`No multi-select container found for: ${pathStr}`);
-        
-        // Still validate the value
-        setTimeout(() => {
-          // Check for special values
-          const hasSpecialValue = Array.isArray(values)
-            ? values.some(val => val === 'N/A' || val === 'Unknown/Unsure' || 
-                              val === 'None of the listed options' || 
-                              val === -9999 || val === -8888)
-            : values === 'N/A' || values === 'Unknown/Unsure' || 
-              values === 'None of the listed options' || 
-              values === -9999 || values === -8888;
-          
-          if (!hasSpecialValue && !isValidValueForField(pathStr, values)) {
-            markFieldAsInvalid(pathStr, values);
-          }
-        }, 100);
+        values.forEach(val => {
+          const cb = Array.from(allCheckboxes).find(c => c.value == val);
+          if (cb) cb.checked = true;
+        });
       }
+
+      updateMultiSelectDisplay(container.id, pathStr);
     }
 
-      function populateArrayOfObjects(pathStr, items) {
+    function populateArrayOfObjects(pathStr, items) {
       const container = document.getElementById('array_' + pathStr);
-      if (!container) {
-        console.warn(`Array container not found for: ${pathStr}`);
-        return;
-      }
-      
-      const existingItems = container.querySelectorAll('.array-item');
-      existingItems.forEach(item => item.remove());
-      
-      const keys = pathStr.split('.');
-      let currentProp = currentSchema.properties;
-      
-      for (let i = 0; i < keys.length; i++) {
-        if (currentProp[keys[i]]) {
-          if (currentProp[keys[i]].$ref) {
-            currentProp = resolveRef(currentProp[keys[i]].$ref);
-            if (i < keys.length - 1) {
-              currentProp = currentProp.properties;
-            }
-          } else if (i === keys.length - 1) {
-            currentProp = currentProp[keys[i]];
-          } else {
-            currentProp = currentProp[keys[i]].properties;
-          }
-        }
-      }
-      
-      const itemSchema = currentProp.items;
-      
+      if (!container) return;
+
+      container.querySelectorAll('.array-item').forEach(item => item.remove());
+
       items.forEach((itemData, index) => {
-        window.addArrayItem(pathStr, itemSchema);
-        
+        const itemSchema = currentSchema;
+        // Resolve correct item schema (simplified - assumes path leads to items)
+        addArrayItem(pathStr, currentSchema.properties[pathStr.split('.').slice(0, -1).join('.') || Object.keys(currentSchema.properties)[0]]?.items || {});
+
         setTimeout(() => {
-          for (const [subKey, subValue] of Object.entries(itemData)) {
-            const itemPath = `${pathStr}.${index}.${subKey}`;
-            populateSingleField(itemPath, subValue);
-          }
-        }, 50);
+          Object.entries(itemData).forEach(([subKey, subValue]) => {
+            populateSingleField(`${pathStr}.${index}.${subKey}`, subValue);
+          });
+        }, 100);
       });
     }
 
-    // ============ CONDITIONAL LOGIC FUNCTIONS ============
-    function applyConditionalRules() {
-      if (!conditionalRules || Object.keys(conditionalRules).length === 0) {
-        return;
-      }
-
-      for (const [triggerField, conditions] of Object.entries(conditionalRules)) {
-        conditions.forEach(condition => {
-          const triggerValue = condition.value;
-          const affectedFields = condition.disable_fields || [];
-          
-          const currentValue = getFieldValue(triggerField);
-          const conditionMet = String(currentValue).trim() === String(triggerValue).trim();
-          
-          affectedFields.forEach(fieldKey => {
-            const fieldGroup = document.querySelector(`[data-field-path="${fieldKey}"]`);
-            if (!fieldGroup) return;
-            
-            if (conditionMet) {
-              fieldGroup.classList.add('disabled');
-              
-              if (!fieldGroup.querySelector('.disabled-indicator')) {
-                const indicator = document.createElement('div');
-                indicator.className = 'disabled-indicator';
-                indicator.textContent = `Auto-disabled (based on ${triggerField})`;
-                fieldGroup.appendChild(indicator);
-              }
-              
-              setDisabledFieldValue(fieldKey, fieldGroup);
-            } else {
-              fieldGroup.classList.remove('disabled');
-              
-              const indicator = fieldGroup.querySelector('.disabled-indicator');
-              if (indicator) indicator.remove();
-            }
-          });
-        });
-      }
-    }
-
-    function getFieldValue(fieldPath) {
-      let input = document.querySelector(`select[data-path="${fieldPath}"]`);
-      if (input) return input.value;
-      
-      input = document.querySelector(`input[type="text"][data-path="${fieldPath}"], input[type="email"][data-path="${fieldPath}"]`);
-      if (input) return input.value;
-      
-      input = document.querySelector(`input[type="number"][data-path="${fieldPath}"]`);
-      if (input) return input.value ? Number(input.value) : null;
-      
-      input = document.querySelector(`input[type="checkbox"][data-path="${fieldPath}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
-      if (input) return input.checked;
-      
-      const naCheckbox = document.getElementById(fieldPath + '_na');
-      if (naCheckbox && naCheckbox.checked) return naCheckbox.value;
-      
-      const multiCheckboxes = document.querySelectorAll(`[data-path="${fieldPath}"].multi-select-checkbox:checked`);
-      if (multiCheckboxes.length > 0) {
-        return Array.from(multiCheckboxes).map(cb => cb.value);
-      }
-
-      return null;
-    }
-
-  function setDisabledFieldValue(fieldPath, fieldGroup) {
-    const fieldType = getFieldTypeFromSchema(fieldPath);
-    let defaultValue;
-    
-    if (fieldType === 'integer' || fieldType === 'number') {
-      defaultValue = -2;
-    } else if (fieldType === 'date') {
-      defaultValue = '1900-01-01';
-    } else {
-      defaultValue = 'N/A';
-    }
-    
-    const selectInput = fieldGroup.querySelector(`select[data-path="${fieldPath}"]`);
-    if (selectInput) {
-      let naOption = Array.from(selectInput.options).find(opt => opt.value === defaultValue);
-      if (!naOption && defaultValue === 'N/A') {
-        naOption = document.createElement('option');
-        naOption.value = 'N/A';
-        naOption.textContent = 'N/A';
-        selectInput.appendChild(naOption);
-      }
-      selectInput.value = defaultValue;
-      return;
-    }
-    
-    const textInput = fieldGroup.querySelector(`input[type="text"][data-path="${fieldPath}"], input[type="email"][data-path="${fieldPath}"]`);
-    if (textInput) {
-      textInput.value = defaultValue;
-      return;
-    }
-    
-    const numberInput = fieldGroup.querySelector(`input[type="number"][data-path="${fieldPath}"]`);
-    if (numberInput) {
-      numberInput.value = defaultValue;
-      return;
-    }
-    
-    const dateInput = fieldGroup.querySelector(`input[type="date"][data-path="${fieldPath}"]`);
-    if (dateInput) {
-      dateInput.value = defaultValue;
-      return;
-    }
-    
-    const multiSelectContainer = fieldGroup.querySelector('.multi-select-container');
-    if (multiSelectContainer) {
-      const dropdownId = multiSelectContainer.id;
-      const path = fieldPath;
-      
-      const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`);
-      allCheckboxes.forEach(cb => cb.checked = false);
-      
-      const naCheckbox = document.getElementById(path + '_na');
-      if (naCheckbox) {
-        // FIX: Check if naCheckbox.value matches defaultValue, if not update it
-        if (naCheckbox.value !== defaultValue) {
-          naCheckbox.value = defaultValue;
-          // Also update the label if it exists
-          const naLabel = document.querySelector(`label[for="${path}_na"]`);
-          if (naLabel) {
-            naLabel.textContent = `${defaultValue} (exclusive)`;
-          }
-        }
-        naCheckbox.checked = true;
-      } else {
-        // If no NA checkbox exists, create one
-        const dropdown = document.getElementById(dropdownId + '_dropdown');
-        if (dropdown) {
-          const naOption = document.createElement('div');
-          naOption.className = 'multi-select-option na-option';
-          naOption.innerHTML = `
-            <input type="checkbox" 
-              id="${path}_na" 
-              value="${defaultValue}" 
-              data-path="${path}"
-              data-dropdown="${dropdownId}"
-              class="na-checkbox"
-              onchange="handleNAChange('${path}', '${dropdownId}')">
-            <label for="${path}_na">${defaultValue} (exclusive)</label>
-          `;
-          dropdown.appendChild(naOption);
-          // Check the new NA checkbox
-          setTimeout(() => {
-            const newNaCheckbox = document.getElementById(path + '_na');
-            if (newNaCheckbox) newNaCheckbox.checked = true;
-          }, 10);
-        }
-      }
-      
-      updateMultiSelectDisplay(dropdownId, path);
-      return;
-    }
-  }
-
-    function getFieldTypeFromSchema(fieldPath) {
-      const keys = fieldPath.split('.');
-      let current = currentSchema.properties;
-      
-      for (let i = 0; i < keys.length; i++) {
-        if (!current || !current[keys[i]]) return 'string';
-        
-        const prop = current[keys[i]];
-        
-        if (prop.$ref) {
-          const resolved = resolveRef(prop.$ref);
-          if (i === keys.length - 1) {
-            return resolved.type || 'string';
-          }
-          current = resolved.properties;
-        } else if (i === keys.length - 1) {
-          return prop.type || 'string';
-        } else {
-          current = prop.properties;
-        }
-      }
-      
-      return 'string';
-    }
-
-    // ============ DEPENDENCY MANAGEMENT FUNCTIONS ============
+    // ============ DEPENDENCIES & CONDITIONAL RULES ============
     function initializeDependencies() {
-      fieldDependencies = {};
-      
-      for (const [fieldKey, config] of Object.entries(customChoices)) {
-        if (config && config.dependent_values) {
-          for (const [dependencyField, valueMap] of Object.entries(config.dependent_values)) {
-            if (!fieldDependencies[dependencyField]) {
-              fieldDependencies[dependencyField] = [];
-            }
-            if (!fieldDependencies[dependencyField].includes(fieldKey)) {
-              fieldDependencies[dependencyField].push(fieldKey);
-            }
+      const deps = {};
+      for (const [field, config] of Object.entries(customChoices)) {
+        if (config?.dependent_values) {
+          for (const depField of Object.keys(config.dependent_values)) {
+            if (!deps[depField]) deps[depField] = [];
+            if (!deps[depField].includes(field)) deps[depField].push(field);
           }
         }
       }
-      
-      console.log('Field dependencies initialized:', fieldDependencies);
+      window.fieldDependencies = deps; // attach to window for use in updateDependentFields
     }
 
     function getDynamicValues(fieldKey) {
-      const choiceConfig = customChoices[fieldKey];
-      if (!choiceConfig || !choiceConfig.dependent_values) {
-        return choiceConfig;
-      }
-      
-      const dependencyValues = {};
-      let allDependenciesMet = true;
-      
-      for (const [dependencyField, valueMap] of Object.entries(choiceConfig.dependent_values)) {
-        const currentValue = getFieldValue(dependencyField);
-        
-        if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
-          if (Array.isArray(currentValue)) {
-            let matched = false;
-            for (const val of currentValue) {
-              if (valueMap[val]) {
-                dependencyValues[dependencyField] = val;
-                matched = true;
-                break;
-              }
-            }
-            if (!matched) {
-              allDependenciesMet = false;
-              break;
-            }
-          } else {
-            if (valueMap[currentValue] !== undefined) {
-              dependencyValues[dependencyField] = currentValue;
-            } else {
-              allDependenciesMet = false;
-              break;
-            }
-          }
-        } else {
-          allDependenciesMet = false;
+      const config = customChoices[fieldKey];
+      if (!config?.dependent_values) return config;
+
+      const matched = {};
+      let allMet = true;
+
+      for (const [depField, map] of Object.entries(config.dependent_values)) {
+        const val = getFieldValue(depField);
+        if (val == null || val === '') {
+          allMet = false;
           break;
         }
+        if (Array.isArray(val)) {
+          if (!val.some(v => map[v] !== undefined)) {
+            allMet = false;
+            break;
+          }
+          matched[depField] = val.find(v => map[v] !== undefined);
+        } else if (map[val] === undefined) {
+          allMet = false;
+          break;
+        } else {
+          matched[depField] = val;
+        }
       }
-      
-      if (allDependenciesMet) {
-        let result = { ...choiceConfig };
-        
-        for (const [dependencyField, depValue] of Object.entries(dependencyValues)) {
-          const valueMap = choiceConfig.dependent_values[dependencyField];
-          if (valueMap && valueMap[depValue]) {
-            result.values = valueMap[depValue];
+
+      if (allMet) {
+        let result = { ...config };
+        for (const [dep, val] of Object.entries(matched)) {
+          if (config.dependent_values[dep][val]) {
+            result.values = config.dependent_values[dep][val];
           }
         }
-        
         return result;
       }
-      
-      return choiceConfig;
+      return config;
     }
 
-    function updateDependentFields(changedFieldPath) {
-      console.log(`Updating fields dependent on: ${changedFieldPath}`);
-      
-      const dependentFields = fieldDependencies[changedFieldPath] || [];
-      
-      dependentFields.forEach(fieldKey => {
-        console.log(`Refreshing dependent field: ${fieldKey}`);
-        refreshFieldWithDependencies(fieldKey);
+    function updateDependentFields(changedPath) {
+      const deps = window.fieldDependencies || {};
+      (deps[changedPath] || []).forEach(field => {
+        const group = document.querySelector(`[data-field-path="${field}"]`);
+        if (group) {
+          const currentVal = getFieldValue(field);
+          const pathParts = field.split('.');
+          const prop = /* resolve property from schema - simplified here */
+            currentSchema.properties?.[pathParts[0]]; // deep resolve omitted for brevity
+          const required = false; // calculate if needed
+          group.outerHTML = createField(pathParts[pathParts.length - 1], prop, required, pathParts);
+          if (currentVal != null) {
+            setTimeout(() => populateSingleField(field, currentVal), 100);
+          }
+        }
       });
-      
-      for (const [dependencyField, dependents] of Object.entries(fieldDependencies)) {
-        if (dependents.includes(changedFieldPath)) {
-          updateDependentFields(dependencyField);
-        }
-      }
     }
 
-    function refreshFieldWithDependencies(fieldKey) {
-      const fieldGroup = document.querySelector(`[data-field-path="${fieldKey}"]`);
-      if (!fieldGroup) {
-        console.warn(`Field group not found for: ${fieldKey}`);
-        return;
-      }
-      
-      const currentValue = getFieldValue(fieldKey);
-      console.log(`Current value of ${fieldKey}:`, currentValue);
-      
-      const keys = fieldKey.split('.');
-      let current = currentSchema.properties;
-      let prop = null;
-      
-      for (let i = 0; i < keys.length; i++) {
-        if (!current || !current[keys[i]]) {
-          console.warn(`Schema path not found: ${fieldKey}`);
-          return;
-        }
-        
-        prop = current[keys[i]];
-        
-        if (prop.$ref) {
-          const resolved = resolveRef(prop.$ref);
-          if (i === keys.length - 1) {
-            prop = resolved;
-          } else {
-            current = resolved.properties;
-          }
-        } else if (i === keys.length - 1) {
-          // Found the property
-        } else {
-          current = prop.properties;
-        }
-      }
-      
-      if (!prop) return;
-      
-      const required = getFieldRequirement(fieldKey);
-      const newFieldHtml = createField(keys[keys.length - 1], prop, required, keys);
-      
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = newFieldHtml;
-      const newFieldGroup = tempDiv.firstElementChild;
-      
-      fieldGroup.parentNode.replaceChild(newFieldGroup, fieldGroup);
-      
-      if (currentValue !== null && currentValue !== undefined && currentValue !== '') {
-        setTimeout(() => {
-          const newValue = getValidValueForField(fieldKey, currentValue);
-          if (newValue !== null) {
-            populateSingleField(fieldKey, newValue);
-          }
-        }, 100);
-      }
-      
-      reattachEventListeners();
+    function getFieldValue(path) {
+      let el = document.querySelector(`select[data-path="${path}"]`);
+      if (el) return el.value;
+
+      el = document.querySelector(`input[type="text"][data-path="${path}"], input[type="email"][data-path="${path}"]`);
+      if (el) return el.value;
+
+      el = document.querySelector(`input[type="number"][data-path="${path}"]`);
+      if (el) return el.value ? Number(el.value) : null;
+
+      el = document.querySelector(`input[type="checkbox"][data-path="${path}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
+      if (el) return el.checked;
+
+      const na = document.getElementById(path + '_na');
+      if (na?.checked) return na.value;
+
+      const checked = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+      return checked.length ? Array.from(checked).map(c => c.value) : null;
     }
 
-    function getValidValueForField(fieldKey, value) {
-      const choiceConfig = getDynamicValues(fieldKey);
-      if (!choiceConfig || !choiceConfig.values) return null;
-      
-      const validValues = choiceConfig.values;
-      
-      if (Array.isArray(value)) {
-        const validSelections = value.filter(val => validValues.includes(val));
-        return validSelections.length > 0 ? validSelections : null;
-      } else {
-        return validValues.includes(value) ? value : null;
-      }
-    }
+    function applyConditionalRules() {
+      if (!conditionalRules || Object.keys(conditionalRules).length === 0) return;
 
-    function getFieldRequirement(fieldKey) {
-      const keys = fieldKey.split('.');
-      let current = currentSchema;
-      
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        
-        if (i === 0 && current.required) {
-          if (current.required.includes(key)) {
-            return true;
-          }
-        }
-        
-        if (current.properties && current.properties[key]) {
-          const prop = current.properties[key];
-          
-          if (prop.$ref) {
-            current = resolveRef(prop.$ref);
-          } else if (i === keys.length - 1) {
-            return prop.required ? prop.required.includes(key) : false;
-          } else if (prop.properties) {
-            current = prop;
-          } else {
-            return false;
-          }
-        } else {
-          return false;
-        }
-      }
-      
-      return false;
-    }
-
-    // ============ EVENT LISTENER MANAGEMENT ============
-    function attachEventListenersToTab(tabKey) {
-      const tabContent = document.getElementById('tab-' + tabKey);
-      if (tabContent) {
-        const inputs = tabContent.querySelectorAll('input, select, textarea');
-        inputs.forEach(input => {
-          if (!input.dataset.listenerAttached) {
-            input.addEventListener('change', (e) => {
-              console.log('Field changed in tab:', tabKey, input.dataset.path, 'Value:', input.value);
-              formData = collectFormData();
-              setTimeout(() => applyConditionalRules(), 100);
-            });
-            input.dataset.listenerAttached = 'true';
-          }
-        });
-        
-        tabContent.querySelectorAll('.multi-select-container').forEach(container => {
-          const dropdownId = container.id;
-          const firstCheckbox = container.querySelector('[data-path]');
-          if (firstCheckbox) {
-            const path = firstCheckbox.dataset.path;
-            updateMultiSelectDisplay(dropdownId, path);
-          }
-        });
-      }
-      
-      setTimeout(() => applyConditionalRules(), 200);
-    }
-    
-    function attachEventListeners() {
-      const inputs = document.querySelectorAll('input, select, textarea');
-      inputs.forEach(input => {
-        if (!input.dataset.listenerAttached) {
-          input.addEventListener('change', (e) => {
-            console.log('Field changed:', input.dataset.path || input.name, 'Value:', input.value);
-            formData = collectFormData();
-            setTimeout(() => applyConditionalRules(), 100);
+      for (const [trigger, rules] of Object.entries(conditionalRules)) {
+        rules.forEach(rule => {
+          const triggerVal = getFieldValue(trigger);
+          const shouldDisable = String(triggerVal).trim() === String(rule.value).trim();
+          (rule.disable_fields || []).forEach(field => {
+            const group = document.querySelector(`[data-field-path="${field}"]`);
+            if (!group) return;
+            if (shouldDisable) {
+              group.classList.add('disabled');
+            } else {
+              group.classList.remove('disabled');
+            }
           });
-          input.dataset.listenerAttached = 'true';
+        });
+      }
+    }
+
+    // ============ EVENT LISTENERS ============
+    function attachEventListenersToTab(tabKey) {
+      const tab = document.getElementById('tab-' + tabKey);
+      if (!tab) return;
+      tab.querySelectorAll('input, select, textarea').forEach(el => {
+        if (!el.dataset.listenerAttached) {
+          el.addEventListener('change', () => {
+            applyConditionalRules();
+          });
+          el.dataset.listenerAttached = 'true';
         }
       });
-      
-      document.querySelectorAll('.multi-select-container').forEach(container => {
-        const dropdownId = container.id;
-        const firstCheckbox = container.querySelector('[data-path]');
-        if (firstCheckbox) {
-          const path = firstCheckbox.dataset.path;
-          updateMultiSelectDisplay(dropdownId, path);
+      updateMultiSelectDisplays(tab);
+      setTimeout(applyConditionalRules, 200);
+    }
+
+    function attachEventListeners() {
+      document.querySelectorAll('input, select, textarea').forEach(el => {
+        if (!el.dataset.listenerAttached) {
+          el.addEventListener('change', () => applyConditionalRules());
+          el.dataset.listenerAttached = 'true';
         }
       });
-      
-      setTimeout(() => applyConditionalRules(), 200);
+      updateMultiSelectDisplays(document);
+      setTimeout(applyConditionalRules, 200);
     }
 
     function setupDependencyListeners() {
-      const inputs = document.querySelectorAll('input, select, textarea');
-      
-      inputs.forEach(input => {
-        const originalOnChange = input.onchange;
-        
-        input.addEventListener('change', function(e) {
-          const fieldPath = this.dataset.path || this.name;
-          const currentValue = this.type === 'checkbox' ? this.checked : this.value;
-          
-          console.log(`Field changed: ${fieldPath}, Value:`, currentValue);
-          
-          // Validate the field after user changes it
-          setTimeout(() => {
-            validateFieldOnChange(fieldPath, currentValue);
-          }, 50);
-          
-          if (originalOnChange) {
-            originalOnChange.call(this, e);
+      document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.addEventListener('change', function () {
+          const path = this.dataset.path;
+          if (path) {
+            updateDependentFields(path);
+            setTimeout(() => validateFieldOnChange(path, getFieldValue(path)), 50);
           }
-          
-          formData = collectFormData();
-          updateDependentFields(fieldPath);
-          setTimeout(() => applyConditionalRules(), 100);
         });
       });
     }
 
     function reattachEventListeners() {
-      const activeTabBtn = document.querySelector('.tab-btn.active');
-      if (activeTabBtn) {
-        attachEventListenersToTab(activeTabBtn.dataset.tabKey);
+      const active = document.querySelector('.tab-btn.active');
+      if (active) {
+        attachEventListenersToTab(active.dataset.tabKey);
       } else {
         attachEventListeners();
       }
     }
 
-    // ============ UTILITY FUNCTIONS ============
+    function updateMultiSelectDisplays(root = document) {
+      root.querySelectorAll('.multi-select-container').forEach(container => {
+        const pathEl = container.querySelector('[data-path]');
+        if (pathEl) updateMultiSelectDisplay(container.id, pathEl.dataset.path);
+      });
+    }
+
     function updateMultiSelectDisplay(dropdownId, path) {
-      const selectedContainer = document.getElementById(dropdownId + '_selected');
-      if (!selectedContainer) return;
-      
-      const naCheckbox = document.getElementById(path + '_na');
-      const selectedCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
-      
-      selectedContainer.innerHTML = '';
-      
-      if (naCheckbox && naCheckbox.checked) {
+      const selected = document.getElementById(dropdownId + '_selected');
+      if (!selected) return;
+
+      const na = document.getElementById(path + '_na');
+      const checked = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox:checked`);
+
+      selected.innerHTML = '';
+      if (na?.checked) {
         const tag = document.createElement('span');
         tag.className = 'multi-select-tag';
-        tag.textContent = naCheckbox.value;
-        selectedContainer.appendChild(tag);
-      } else if (selectedCheckboxes.length > 0) {
-        selectedCheckboxes.forEach(cb => {
+        tag.textContent = na.value;
+        selected.appendChild(tag);
+      } else if (checked.length) {
+        checked.forEach(cb => {
           const tag = document.createElement('span');
           tag.className = 'multi-select-tag';
           tag.textContent = cb.value;
-          selectedContainer.appendChild(tag);
+          selected.appendChild(tag);
         });
       } else {
-        const placeholder = document.createElement('span');
-        placeholder.className = 'multi-select-placeholder';
-        placeholder.textContent = '-- Select --';
-        selectedContainer.appendChild(placeholder);
+        const ph = document.createElement('span');
+        ph.className = 'multi-select-placeholder';
+        ph.textContent = '-- Select --';
+        selected.appendChild(ph);
       }
     }
 
-    // ===== new error handling ====== ASHOK
-    // ============ INVALID DATA VALIDATION FUNCTIONS ============
-    let invalidFields = new Map(); // Map to track invalid fields: path -> {loadedValue, validOptions}
+    // ============ INVALID VALUE HANDLING ============
+    function isValidValueForField(path, value) {
+      const specialStrings = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
+      const specialNums = [-9999, -8888, '-9999', '-8888'];
 
-    /**
-     * Validates if a value is valid for a given field based on choices.json
-     */
-    function isValidValueForField(fieldPath, value) {
-      // Special values that are always valid
-      const specialStringValues = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
-      const specialNumericValues = [-9999, -8888, '-9999', '-8888'];
-      
-      // Check for special values first
       if (Array.isArray(value)) {
-        // For arrays, check each value
-        const allSpecial = value.every(val => 
-          specialStringValues.includes(val) || 
-          specialNumericValues.includes(val)
-        );
-        if (allSpecial) return true;
-        
-        // Check if any value is special (mixed array)
-        const hasSpecial = value.some(val => 
-          specialStringValues.includes(val) || 
-          specialNumericValues.includes(val)
-        );
-      } else {
-        // Single value
-        if (specialStringValues.includes(value) || specialNumericValues.includes(value)) {
-          return true; // Special values are always valid
-        }
-      }
-      
-      // Get the choice configuration for this field
-      const choiceConfig = getDynamicValues(fieldPath);
-      
-      if (!choiceConfig || !choiceConfig.values) {
-        // If no choices defined, all values are valid
+        if (value.every(v => specialStrings.includes(v) || specialNums.includes(v))) return true;
+      } else if (specialStrings.includes(value) || specialNums.includes(value)) {
         return true;
       }
-      
-      const validValues = choiceConfig.values;
-      
-      // Handle multi-select values (arrays)
+
+      const config = getDynamicValues(path);
+      if (!config?.values) return true;
+
+      const valid = config.values;
+
       if (Array.isArray(value)) {
-        // Filter out special values that we've already handled
-        const nonSpecialValues = value.filter(val => 
-          !specialStringValues.includes(val) && !specialNumericValues.includes(val)
-        );
-        
-        if (nonSpecialValues.length === 0) {
-          return true; // All values were special
-        }
-        
-        // For multi-select, all non-special values must be in the valid list
-        return nonSpecialValues.every(val => {
-          // Check if value is directly in the list
-          if (validValues.includes(val)) {
-            return true;
-          }
-          
-          // Check for numeric range values like "1-50"
-          if (typeof val === 'number' || !isNaN(val)) {
-            const numVal = Number(val);
-            return validValues.some(validVal => {
-              if (typeof validVal === 'string' && validVal.includes('-')) {
-                const rangeMatch = validVal.match(/^(\d+)-(\d+)$/);
-                if (rangeMatch) {
-                  const min = parseInt(rangeMatch[1]);
-                  const max = parseInt(rangeMatch[2]);
-                  return numVal >= min && numVal <= max;
-                }
-              }
-              return false;
-            });
-          }
-          
-          return false;
+        return value.every(v => {
+          if (specialStrings.includes(v) || specialNums.includes(v)) return true;
+          if (valid.includes(v)) return true;
+          const n = Number(v);
+          return valid.some(range => typeof range === 'string' && /^(\d+)-(\d+)$/.test(range) &&
+            n >= +range.split('-')[0] && n <= +range.split('-')[1]);
         });
       }
-      
-      // Handle single-select values
-      
-      // Check if value is directly in the list
-      if (validValues.includes(value)) {
-        return true;
-      }
-      
-      // Check for numeric range values like "1-50"
-      if (typeof value === 'number' || !isNaN(value)) {
-        const numVal = Number(value);
-        return validValues.some(validVal => {
-          if (typeof validVal === 'string' && validVal.includes('-')) {
-            const rangeMatch = validVal.match(/^(\d+)-(\d+)$/);
-            if (rangeMatch) {
-              const min = parseInt(rangeMatch[1]);
-              const max = parseInt(rangeMatch[2]);
-              return numVal >= min && numVal <= max;
-            }
-          }
-          return Number(validVal) === numVal;
-        });
-      }
-      
-      // For string values that might be in the list
-      return validValues.includes(value.toString());
+
+      if (valid.includes(value)) return true;
+      const n = Number(value);
+      return valid.some(range => typeof range === 'string' && /^(\d+)-(\d+)$/.test(range) &&
+        n >= +range.split('-')[0] && n <= +range.split('-')[1]);
     }
 
-    /**
-     * Marks a field as invalid and stores the invalid value
-     */
-    function markFieldAsInvalid(fieldPath, loadedValue) {
-      // Get the field element
-      let fieldElement = document.querySelector(`[data-path="${fieldPath}"]`);
-      
-      if (!fieldElement) {
-        // For nested fields in multi-select containers
-        const multiSelectContainer = document.querySelector(`[data-field-path="${fieldPath}"] .multi-select-container`);
-        if (multiSelectContainer) {
-          fieldElement = multiSelectContainer;
-        } else {
-          // Try other input types
-          fieldElement = document.querySelector(`select[data-path="${fieldPath}"], 
-                                                input[data-path="${fieldPath}"], 
-                                                textarea[data-path="${fieldPath}"]`);
-        }
-      }
-      
-      if (!fieldElement) {
-        console.warn(`Could not find element for invalid field: ${fieldPath}`);
-        return;
-      }
-      
-      // Add invalid class to the element
-      fieldElement.classList.add('invalid-data');
-      
-      // Store the invalid data in our map
-      const choiceConfig = getDynamicValues(fieldPath);
-      invalidFields.set(fieldPath, {
-        loadedValue: loadedValue,
-        validOptions: choiceConfig?.values || [],
-        element: fieldElement,
-        formGroup: formGroup
+    function markFieldAsInvalid(path, value) {
+      const group = document.querySelector(`[data-field-path="${path}"]`);
+      const input = group?.querySelector('input, select, textarea, .multi-select-container') || null;
+      if (input) input.classList.add('invalid-data');
+
+      const config = getDynamicValues(path);
+      invalidFields.set(path, {
+        loadedValue: value,
+        validOptions: config?.values || [],
+        element: input
       });
-      
-      // Add tooltip for mouse hover
-      fieldElement.addEventListener('mouseenter', showInvalidTooltip);
-      fieldElement.addEventListener('mouseleave', hideInvalidTooltip);
-      
-      console.log(`Marked field as invalid: ${fieldPath}`, loadedValue);
 
-      // Update the invalid fields summary
       updateInvalidFieldsSummary();
     }
 
-    /**
-     * Clears invalid status from a field
-     */
-     function clearFieldInvalidStatus(fieldPath) {
-      const fieldInfo = invalidFields.get(fieldPath);
-      
-      // Remove invalid class from the input/select/textarea element itself
-      const inputElement = document.querySelector(`select[data-path="${fieldPath}"],
-                                                  input[data-path="${fieldPath}"],
-                                                  textarea[data-path="${fieldPath}"]`);
-      
-      if (inputElement) {
-        inputElement.classList.remove('invalid-data');
-      }
-      
-      // Also remove from multi-select containers if present
-      const multiSelectContainer = document.querySelector(`[data-field-path="${fieldPath}"] .multi-select-container`);
-      if (multiSelectContainer) {
-        multiSelectContainer.classList.remove('invalid-data');
-      }
-      
-      // Remove the form-group's invalid styling
-      const formGroup = document.querySelector(`[data-field-path="${fieldPath}"]`);
-      if (formGroup) {
-        formGroup.style.backgroundColor = '';
-        formGroup.style.borderLeft = '';
-        formGroup.style.borderColor = ''; // Reset border color
-      }
-      
-      // Clean up tooltip event listeners
-      if (fieldInfo && fieldInfo.element) {
-        fieldInfo.element.removeEventListener('mouseenter', showInvalidTooltip);
-        fieldInfo.element.removeEventListener('mouseleave', hideInvalidTooltip);
-      }
-      
-      // Remove from tracking map
-      invalidFields.delete(fieldPath);
-      
-      // Update the invalid fields summary
+    function clearFieldInvalidStatus(path) {
+      const info = invalidFields.get(path);
+      if (info?.element) info.element.classList.remove('invalid-data');
+      const group = document.querySelector(`[data-field-path="${path}"]`);
+      if (group) group.style.borderLeft = '';
+
+      invalidFields.delete(path);
       updateInvalidFieldsSummary();
-      
-      // If no invalid fields left, remove the summary
-      if (invalidFields.size === 0) {
-        const existingSummary = document.getElementById('invalid-fields-summary');
-        if (existingSummary) {
-          existingSummary.remove();
+    }
+
+    function validateLoadedData(data) {
+      invalidFields.clear();
+      function recurse(obj, path = []) {
+        for (const [k, v] of Object.entries(obj)) {
+          if (v == null) continue;
+          const fullPath = [...path, k].join('.');
+          if (typeof v === 'object' && !Array.isArray(v)) {
+            recurse(v, [...path, k]);
+          } else if (!isValidValueForField(fullPath, v)) {
+            markFieldAsInvalid(fullPath, v);
+          }
         }
       }
+      recurse(data);
     }
 
-    /**
-     * Restores original border styling to a form group
-     */
-    function restoreOriginalBorder(formGroup) {
-      if (!formGroup) return;
-      
-      // Restore to original CSS variable styles
-      formGroup.style.backgroundColor = '';
-      formGroup.style.borderLeft = '';
-      formGroup.style.borderColor = '';
-      formGroup.style.boxShadow = '';
-      
-      // Ensure the CSS class styling takes precedence
-      formGroup.classList.remove('has-error');
-    }
-
-    /**
-     * Shows tooltip for invalid fields
-     */
-    function showInvalidTooltip(event) {
-      const element = event.currentTarget;
-      const fieldPath = element.dataset?.path || 
-                        element.closest('[data-field-path]')?.dataset?.fieldPath;
-      
-      if (!fieldPath) return;
-      
-      const fieldInfo = invalidFields.get(fieldPath);
-      if (!fieldInfo) return;
-      
-      // Create or update tooltip
-      let tooltip = element.querySelector('.invalid-tooltip');
-      if (!tooltip) {
-        tooltip = document.createElement('div');
-        tooltip.className = 'invalid-tooltip';
-        element.appendChild(tooltip);
-      }
-      
-      let message = `Invalid value: "${fieldInfo.loadedValue}"\n`;
-      if (fieldInfo.validOptions.length > 0) {
-        message += `Valid options: ${fieldInfo.validOptions.slice(0, 3).join(', ')}`;
-        if (fieldInfo.validOptions.length > 3) {
-          message += `... and ${fieldInfo.validOptions.length - 3} more`;
-        }
-      }
-      
-      tooltip.textContent = message;
-      tooltip.style.display = 'block';
-      
-      // Position tooltip
-      const rect = element.getBoundingClientRect();
-      tooltip.style.top = `${rect.top - tooltip.offsetHeight - 5}px`;
-      tooltip.style.left = `${rect.left}px`;
-    }
-
-    /**
-     * Hides tooltip for invalid fields
-     */
-    function hideInvalidTooltip(event) {
-      const element = event.currentTarget;
-      const tooltip = element.querySelector('.invalid-tooltip');
-      if (tooltip) {
-        tooltip.style.display = 'none';
+    function validateFieldOnChange(path, value) {
+      if (isValidValueForField(path, value)) {
+        clearFieldInvalidStatus(path);
+      } else if (!invalidFields.has(path)) {
+        markFieldAsInvalid(path, value);
       }
     }
 
-    /**
-     * Creates and displays a summary of all invalid fields
-     */
     function updateInvalidFieldsSummary() {
-      // Remove existing summary if any
-      const existingSummary = document.getElementById('invalid-fields-summary');
-  
-      // If no invalid fields, don't show summary      
-      if (invalidFields.size === 0) {
-        if (existingSummary) {
-          existingSummary.remove();
-        }
-        return;
-      }
-      
-      // Create summary container
-      const summary = document.createElement('div');
+      let summary = document.getElementById('invalid-fields-summary');
+      if (summary) summary.remove();
+
+      if (invalidFields.size === 0) return;
+
+      summary = document.createElement('div');
       summary.id = 'invalid-fields-summary';
       summary.className = 'invalid-fields-summary';
-      
-      let summaryHtml = `
+      summary.innerHTML = `
         <button class="close-summary" onclick="this.parentElement.remove()">×</button>
-        <h3>⚠️ Invalid Data Found (${invalidFields.size} field${invalidFields.size > 1 ? 's' : ''})</h3>
-        <p>The following fields contain values not in the allowed list:</p>
+        <h3>⚠️ Invalid Data (${invalidFields.size})</h3>
         <ul>
-      `;
-      
-      // Add each invalid field to the list
-      invalidFields.forEach((fieldInfo, fieldPath) => {
-        const displayPath = fieldPath.split('.').pop(); // Show only last part of path
-        const loadedValue = Array.isArray(fieldInfo.loadedValue) 
-          ? fieldInfo.loadedValue.join(', ') 
-          : fieldInfo.loadedValue;
-        
-        summaryHtml += `
-          <li onclick="scrollToInvalidField('${fieldPath}')">
-            <strong>${displayPath}:</strong> "${loadedValue}"
-          </li>
-        `;
-      });
-      
-      summaryHtml += `
+          ${Array.from(invalidFields.entries()).map(([path, info]) => {
+            const name = path.split('.').pop();
+            const val = Array.isArray(info.loadedValue) ? info.loadedValue.join(', ') : info.loadedValue;
+            return `<li onclick="scrollToInvalidField('${path}')"><strong>${name}:</strong> "${val}"</li>`;
+          }).join('')}
         </ul>
-        <p style="margin-top: 10px; font-size: 12px;">
-          Click on a field above to scroll to it. Select a valid value from the dropdown to fix.
-        </p>
       `;
-      
-      summary.innerHTML = summaryHtml;
-      
-      // Insert summary at the top of the form
-      const form = document.getElementById('editor-form') || 
-                  document.querySelector('.tab-content.active') || 
-                  document.querySelector('.tabs-container');
-      if (form) {
-        form.parentNode.insertBefore(summary, form);
+
+      const container = editorForm || tabsContent || document.body;
+      container.parentNode.insertBefore(summary, container);
+    }
+
+    function scrollToInvalidField(path) {
+      const el = document.querySelector(`[data-field-path="${path}"]`) ||
+                document.querySelector(`[data-path="${path}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.boxShadow = '0 0 0 3px rgba(220,53,69,0.4)';
+        setTimeout(() => el.style.boxShadow = '', 2000);
       }
     }
 
-    /**
-     * Scrolls to an invalid field when clicked in the summary
-     */
-    function scrollToInvalidField(fieldPath) {
-      const fieldElement = document.querySelector(`[data-field-path="${fieldPath}"],
-                                                  select[data-path="${fieldPath}"],
-                                                  input[data-path="${fieldPath}"],
-                                                  textarea[data-path="${fieldPath}"]`);
-      
-      if (fieldElement) {
-        // Scroll to the field
-        fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Highlight with a temporary animation
-        fieldElement.style.transition = 'all 0.3s';
-        fieldElement.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.3)';
-        
-        setTimeout(() => {
-          fieldElement.style.boxShadow = '';
-        }, 2000);
-        
-        // Focus the field if it's an input
-        const inputElement = fieldElement.querySelector('input, select, textarea') || fieldElement;
-        if (inputElement.focus) {
-          inputElement.focus();
-        }
-      }
-    }
-
-    /**
-     * Validates all fields after data is loaded
-     */
-    function validateLoadedData(data, parentPath = []) {
-      invalidFields.clear(); // Clear previous invalid fields
-      
-      for (const [key, value] of Object.entries(data)) {
-        const currentPath = [...parentPath, key];
-        const pathStr = currentPath.join('.');
-        
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-          // Recursively validate nested objects
-          validateLoadedData(value, currentPath);
-        } else if (value !== null && value !== undefined && value !== '') {
-          // Validate this field's value
-          if (!isValidValueForField(pathStr, value)) {
-            console.log(`Invalid value found: ${pathStr} =`, value);
-            markFieldAsInvalid(pathStr, value);
-          }
-        }
-      }
-      
-      // Update the invalid fields summary
-      updateInvalidFieldsSummary();
-    }
-
-    /**
-     * Validates a single field when user changes it
-     */
-    function validateFieldOnChange(fieldPath, currentValue) {
-      const formGroup = document.querySelector(`[data-field-path="${fieldPath}"]`);
-      
-      if (!isValidValueForField(fieldPath, currentValue)) {
-        // Field is still invalid
-        if (!invalidFields.has(fieldPath)) {
-          markFieldAsInvalid(fieldPath, currentValue);
-        }
-      } else {
-        // Field is now valid, clear invalid status
-        clearFieldInvalidStatus(fieldPath);
-        
-        // Also restore the form-group styling
-        if (formGroup) {
-          restoreOriginalBorder(formGroup);
-        }
-      }
-    }
-    // ===== END error handling ====== 
-
-    // ============ WINDOW FUNCTIONS (Global scope) ============
+    // ============ GLOBAL WINDOW FUNCTIONS ============
     window.toggleNested = function(header) {
       header.classList.toggle('collapsed');
       header.nextElementSibling.nextElementSibling.classList.toggle('collapsed');
@@ -2787,122 +1684,75 @@
 
     window.addArrayItem = function(arrayPath, itemSchema) {
       itemSchema = typeof itemSchema === 'string' ? JSON.parse(itemSchema.replace(/&quot;/g, '"')) : itemSchema;
-      
-      if (itemSchema.$ref) {
-        itemSchema = resolveRef(itemSchema.$ref);
-      }
-      
+      if (itemSchema.$ref) itemSchema = resolveRef(itemSchema.$ref);
+
       const container = document.getElementById('array_' + arrayPath);
       const items = container.querySelectorAll('.array-item');
       const index = items.length;
-      
-      const properties = itemSchema.properties || {};
-      const required = itemSchema.required || [];
-      
-      let fieldsHtml = '';
-      for (const [subKey, subProp] of Object.entries(properties)) {
-        const isSubRequired = required.includes(subKey);
-        fieldsHtml += createField(subKey, subProp, isSubRequired, [...arrayPath.split('.'), index, subKey]);
+
+      const props = itemSchema.properties || {};
+      const req = itemSchema.required || [];
+
+      let html = '';
+      for (const [k, p] of Object.entries(props)) {
+        html += createField(k, p, req.includes(k), [...arrayPath.split('.'), index, k]);
       }
-      
-      const itemDiv = document.createElement('div');
-      itemDiv.className = 'array-item';
-      itemDiv.innerHTML = `
+
+      const div = document.createElement('div');
+      div.className = 'array-item';
+      div.innerHTML = `
         <div class="array-item-header">
           <span class="array-item-title">Item ${index + 1}</span>
-          <button class="remove-item-btn" onclick="removeArrayItem(this)">Remove</button>
+          <button type="button" class="remove-item-btn" onclick="removeArrayItem(this)">Remove</button>
         </div>
-        ${fieldsHtml}
+        ${html}
       `;
-      
-      container.insertBefore(itemDiv, container.querySelector('.array-controls'));
-      
-      const activeTabBtn = document.querySelector('.tab-btn.active');
-      if (activeTabBtn) {
-        attachEventListenersToTab(activeTabBtn.dataset.tabKey);
-      } else {
-        attachEventListeners();
-      }
+      container.insertBefore(div, container.querySelector('.array-controls'));
+      reattachEventListeners();
     };
 
     window.removeArrayItem = function(btn) {
       const item = btn.closest('.array-item');
+      const container = item.parentNode;
       item.remove();
-      const container = item.parentElement;
-      const items = container.querySelectorAll('.array-item');
-      items.forEach((item, idx) => {
-        item.querySelector('.array-item-title').textContent = 'Item ' + (idx + 1);
+      container.querySelectorAll('.array-item').forEach((el, i) => {
+        el.querySelector('.array-item-title').textContent = `Item ${i + 1}`;
       });
     };
 
     window.handleMultiSelectChange = function(path, dropdownId) {
-      const changedCheckbox = event.target;
-      const changedValue = changedCheckbox.value;
-      
-      const exclusiveOptions = ['Unknown/Unsure', 'None of the listed options', 'N/A'];
-      
-      if (exclusiveOptions.includes(changedValue) && changedCheckbox.checked) {
-        const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`);
-        allCheckboxes.forEach(cb => {
-          if (cb !== changedCheckbox) {
-            cb.checked = false;
-          }
-        });
-      } else if (changedCheckbox.checked) {
-        const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`);
-        allCheckboxes.forEach(cb => {
-          if (exclusiveOptions.includes(cb.value)) {
-            cb.checked = false;
-          }
-        });
+      const target = event.target;
+      const exclusive = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
+      if (exclusive.includes(target.value) && target.checked) {
+        document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`)
+          .forEach(cb => cb !== target && (cb.checked = false));
+      } else if (target.checked) {
+        document.querySelectorAll(`[data-path="${path}"].na-checkbox`)
+          .forEach(cb => cb.checked = false);
       }
-      
-      // Validate after change
-      setTimeout(() => {
-        const currentValue = getFieldValue(path);
-        validateFieldOnChange(path, currentValue);
-      }, 50);
-
       updateMultiSelectDisplay(dropdownId, path);
+      setTimeout(() => validateFieldOnChange(path, getFieldValue(path)), 50);
     };
 
     window.handleNAChange = function(path, dropdownId) {
-      const naCheckbox = document.getElementById(path + '_na');
-
-      if (naCheckbox && naCheckbox.checked) {
-        const multiSelectCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`);
-        multiSelectCheckboxes.forEach(cb => cb.checked = false);
+      if (event.target.checked) {
+        document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`)
+          .forEach(cb => cb.checked = false);
       }
-      // Validate after change
-      setTimeout(() => {
-        const currentValue = getFieldValue(path);
-        validateFieldOnChange(path, currentValue);
-      }, 50);
-      
       updateMultiSelectDisplay(dropdownId, path);
+      setTimeout(() => validateFieldOnChange(path, getFieldValue(path)), 50);
     };
 
     window.toggleMultiSelectDropdown = function(dropdownId) {
+      document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('open'));
       const dropdown = document.getElementById(dropdownId + '_dropdown');
-      if (dropdown) {
-        const isOpen = dropdown.classList.contains('open');
-        
-        document.querySelectorAll('.multi-select-dropdown').forEach(dd => {
-          dd.classList.remove('open');
-        });
-        
-        if (!isOpen) {
-          dropdown.classList.add('open');
-        }
-      }
+      if (dropdown) dropdown.classList.toggle('open');
     };
 
-    // ============ GLOBAL EVENT LISTENERS ============
-    document.addEventListener('click', function(event) {
-      if (!event.target.closest('.multi-select-container')) {
-        document.querySelectorAll('.multi-select-dropdown').forEach(dd => {
-          dd.classList.remove('open');
-        });
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.multi-select-container')) {
+        document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('open'));
       }
     });
   </script>

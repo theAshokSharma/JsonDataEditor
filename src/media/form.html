@@ -545,9 +545,115 @@
       animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    /* ============ INVALID DATA STYLES ============ */
+    select.invalid-data,
+    input.invalid-data,
+    textarea.invalid-data,
+    .multi-select-container.invalid-data .multi-select-trigger {
+      border-color: var(--vscode-errorForeground);
+      animation: pulse-border 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: var(--vscode-errorForeground); }
+      50% { border-color: #ff6b6b; }
+    }
+
+    /* When user starts interacting with invalid field */
+    select.invalid-data:focus,
+    input.invalid-data:focus,
+    textarea.invalid-data:focus,
+    .multi-select-container.invalid-data .multi-select-trigger:focus {
+      animation: none;
+    }
+
+    /* Make form groups with invalid data stand out */
+    .form-group:has(.invalid-data) {
+      background-color: rgba(220, 53, 69, 0.05);
+      border-left: 3px solid var(--vscode-errorForeground);
+    }
+
+    /* Tooltip for invalid fields */
+    .invalid-tooltip {
+      display: none;
+      position: absolute;
+      background-color: var(--vscode-errorForeground);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 10000;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* Invalid fields summary */
+    .invalid-fields-summary {
+      position: sticky;
+      top: 0;
+      background-color: rgba(220, 53, 69, 0.1);
+      border: 2px solid var(--vscode-errorForeground);
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 20px;
+      z-index: 1000;
+    }
+
+    .invalid-fields-summary h3 {
+      margin: 0 0 12px 0;
+      color: var(--vscode-errorForeground);
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .invalid-fields-summary ul {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--vscode-errorForeground);
+    }
+
+    .invalid-fields-summary li {
+      margin-bottom: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .invalid-fields-summary li:hover {
+      text-decoration: underline;
+    }
+
+    .invalid-fields-summary .close-summary {
+      float: right;
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--vscode-errorForeground);
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      line-height: 1;
+    }
+
+    .invalid-fields-summary .close-summary:hover {
+      opacity: 0.8;
+    }
+
+    /* Status indicator for invalid fields */
+    .invalid-status-indicator {
+      font-size: 11px;
+      color: var(--vscode-errorForeground);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .invalid-status-indicator::before {
+      content: "⚠️";
+      font-size: 10px;
     }
 
   </style>
@@ -699,6 +805,9 @@
     function clearUI() {
       console.log('Clearing UI');
       
+      // Clear invalid fields tracking
+      invalidFields.clear();
+
       if (tabsHeader) tabsHeader.innerHTML = '';
       if (tabsContent) tabsContent.innerHTML = '';
       if (tabsContainer) tabsContainer.style.display = 'none';
@@ -782,7 +891,7 @@
         if (currentSchema) {
           setTimeout(() => {
             populateFormWithData(initialData);
-            showNotification('Data loaded successfully');
+            showNotification(`Data loaded. Found ${invalidFields.size} field(s) with invalid values.`);
           }, 300);
         } else {
           console.warn('Cannot load data: No schema loaded');
@@ -1231,9 +1340,17 @@
     // ============ FORM POPULATION FUNCTIONS ============
     function populateFormWithData(data) {
       console.log('Populating form with data:', data);
+
+      // clear previous invalid fields
+      invalidFields.clear();
+
+      // first populate the form
       populateFields(data, []);
+
+      // then validate all populated data
       
       setTimeout(() => {
+        validateLoadedData(data);
         initializeDependencies();
         
         for (const [fieldKey] of Object.entries(customChoices)) {
@@ -1275,6 +1392,7 @@
       const escapedPath = pathStr.replace(/\./g, '_');
       let container = document.getElementById(`multiselect_${escapedPath}`);
       
+      // Look for multi-select container
       if (!container) {
         const containers = document.querySelectorAll('.multi-select-container');
         for (const cont of containers) {
@@ -1286,37 +1404,117 @@
         }
       }
       
+      // Handle multi-select fields
       if (container) {
         populateArrayField(pathStr, value);
+        
+        // Validate after populating (with delay to ensure DOM is updated)
+        setTimeout(() => {
+          if (!isValidValueForField(pathStr, value)) {
+            markFieldAsInvalid(pathStr, value);
+          }
+        }, 150);
+        
         return;
       }
       
+      // Handle single-select dropdowns
       let input = document.querySelector(`select[data-path="${pathStr}"]`);
       if (input) {
-        const optionExists = Array.from(input.options).some(option => option.value === value);
+        // Check for special string values that should be allowed
+        const isSpecialStringValue = value === 'N/A' || value === 'Unknown/Unsure' || 
+                                    value === 'None of the listed options';
+        
+        // Check if value exists in dropdown options
+        const optionExists = Array.from(input.options).some(option => {
+          // Handle special N/A values
+          if (isSpecialStringValue && option.value === value) {
+            return true;
+          }
+          return option.value === value;
+        });
+        
         if (optionExists) {
           input.value = value;
           input.dispatchEvent(new Event('change'));
+          
+          // Validate after setting value (special values are always valid)
+          setTimeout(() => {
+            if (!isSpecialStringValue && !isValidValueForField(pathStr, value)) {
+              markFieldAsInvalid(pathStr, value);
+            }
+          }, 50);
         } else {
           console.warn(`Value "${value}" not found in dropdown options for ${pathStr}`);
+          
+          // Set the value anyway (might be a text input styled as dropdown)
+          input.value = value;
+          input.dispatchEvent(new Event('change'));
+          
+          // Mark as invalid since value not in options (unless it's a special numeric value)
+          const isSpecialNumericValue = value === -9999 || value === -8888 || 
+                                      value === '-9999' || value === '-8888';
+          if (!isSpecialStringValue && !isSpecialNumericValue) {
+            markFieldAsInvalid(pathStr, value);
+          }
         }
         return;
       }
       
+      // Handle text inputs
       input = document.querySelector(`input[type="text"][data-path="${pathStr}"], input[type="email"][data-path="${pathStr}"]`);
       if (input) {
         input.value = value;
         input.dispatchEvent(new Event('change'));
+        
+        // Validate text inputs (check if they should be dropdowns)
+        setTimeout(() => {
+          // Check if this field has choices defined
+          const choiceConfig = getDynamicValues(pathStr);
+          if (choiceConfig && choiceConfig.values && choiceConfig.values.length > 0) {
+            // Special string values are always valid
+            if (value === 'N/A' || value === 'Unknown/Unsure' || value === 'None of the listed options') {
+              return; // Valid special value
+            }
+            
+            // This should be a dropdown, not a text input
+            if (!isValidValueForField(pathStr, value)) {
+              markFieldAsInvalid(pathStr, value);
+            }
+          }
+        }, 50);
+        
         return;
       }
       
+      // Handle number inputs
       input = document.querySelector(`input[type="number"][data-path="${pathStr}"]`);
       if (input) {
-        input.value = value;
+        // Convert value to number if it's a string
+        const numValue = typeof value === 'string' ? Number(value) : value;
+        input.value = numValue;
         input.dispatchEvent(new Event('change'));
+        
+        // Validate numeric values
+        setTimeout(() => {
+          const choiceConfig = getDynamicValues(pathStr);
+          if (choiceConfig && choiceConfig.values && choiceConfig.values.length > 0) {
+            // Special numeric values are always valid
+            if (numValue === -9999 || numValue === -8888) {
+              return; // Valid special value
+            }
+            
+            // Check if number is valid according to choices
+            if (!isValidValueForField(pathStr, numValue)) {
+              markFieldAsInvalid(pathStr, value);
+            }
+          }
+        }, 50);
+        
         return;
       }
       
+      // Handle date inputs
       input = document.querySelector(`input[type="date"][data-path="${pathStr}"]`);
       if (input) {
         input.value = value;
@@ -1324,13 +1522,40 @@
         return;
       }
       
+      // Handle checkboxes (non-multi-select)
       input = document.querySelector(`input[type="checkbox"][data-path="${pathStr}"]:not(.multi-select-checkbox):not(.na-checkbox)`);
       if (input) {
-        input.checked = value === true;
+        // Convert various boolean representations
+        let boolValue;
+        if (value === true || value === 'true' || value === 'Yes' || value === 1) {
+          boolValue = true;
+        } else if (value === false || value === 'false' || value === 'No' || value === 0) {
+          boolValue = false;
+        } else {
+          boolValue = Boolean(value);
+        }
+        
+        input.checked = boolValue;
         input.dispatchEvent(new Event('change'));
+        
+        // Validate checkbox values
+        setTimeout(() => {
+          const choiceConfig = getDynamicValues(pathStr);
+          if (choiceConfig && choiceConfig.values) {
+            const validBoolValues = ['Yes', 'No', 'true', 'false', true, false, 'I Quit'];
+            const isValid = validBoolValues.includes(value) || 
+                          choiceConfig.values.includes(value.toString());
+            
+            if (!isValid) {
+              markFieldAsInvalid(pathStr, value);
+            }
+          }
+        }, 50);
+        
         return;
       }
       
+      // Handle textareas
       input = document.querySelector(`textarea[data-path="${pathStr}"]`);
       if (input) {
         if (Array.isArray(value)) {
@@ -1342,12 +1567,31 @@
         return;
       }
       
+      // If we get here, we couldn't find the input
       console.warn(`Could not find input for path: ${pathStr}`);
+      
+      // Still validate the value if we have choices for this field
+      setTimeout(() => {
+        const choiceConfig = getDynamicValues(pathStr);
+        if (choiceConfig && choiceConfig.values && choiceConfig.values.length > 0) {
+          // Check for special values first
+          if (value === 'N/A' || value === 'Unknown/Unsure' || value === 'None of the listed options' ||
+              value === -9999 || value === -8888 || value === '-9999' || value === '-8888') {
+            return; // Special values are always valid
+          }
+          
+          if (!isValidValueForField(pathStr, value)) {
+            // Mark as invalid even though we couldn't find the element
+            console.warn(`Value "${value}" is invalid for field ${pathStr} but element not found`);
+          }
+        }
+      }, 100);
     }
 
     function populateArrayField(pathStr, values) {
       console.log(`Populating array field: ${pathStr} with values:`, values);
       
+      // Helper function to update multi-select display
       function updateMultiSelectDisplayLocal(dropdownId, path) {
         const selectedContainer = document.getElementById(dropdownId + '_selected');
         if (!selectedContainer) return;
@@ -1377,8 +1621,8 @@
         }
       }
       
+      // Find the multi-select container
       let container = null;
-      
       const escapedPath = pathStr.replace(/\./g, '_');
       container = document.getElementById(`multiselect_${escapedPath}`);
       
@@ -1399,52 +1643,113 @@
         
         if (allCheckboxes.length === 0) {
           console.warn(`No multi-select checkboxes found for: ${pathStr}`);
+          
+          // Still validate the value
+          setTimeout(() => {
+            if (!isValidValueForField(pathStr, values)) {
+              markFieldAsInvalid(pathStr, values);
+            }
+          }, 100);
           return;
         }
         
+        // Clear all selections first
         allCheckboxes.forEach(cb => cb.checked = false);
         if (naCheckbox) naCheckbox.checked = false;
         
         const exclusiveOptions = ['None of the listed options', 'Unknown/Unsure', 'N/A'];
         
+        // Handle string value (single selection)
         if (typeof values === 'string') {
+          // Check for special values
           if (naCheckbox && naCheckbox.value === values) {
             naCheckbox.checked = true;
           } else if (exclusiveOptions.includes(values)) {
             const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
-            if (matchingCheckbox) matchingCheckbox.checked = true;
+            if (matchingCheckbox) {
+              matchingCheckbox.checked = true;
+            } else {
+              // Value not in checkbox list
+              console.warn(`Value "${values}" not found in checkbox options for ${pathStr}`);
+            }
           } else {
             const matchingCheckbox = Array.from(allCheckboxes).find(cb => cb.value === values);
-            if (matchingCheckbox) matchingCheckbox.checked = true;
+            if (matchingCheckbox) {
+              matchingCheckbox.checked = true;
+            } else {
+              // Value not in checkbox list
+              console.warn(`Value "${values}" not found in checkbox options for ${pathStr}`);
+            }
           }
-        } else if (Array.isArray(values)) {
+        } 
+        // Handle array of values (multiple selections)
+        else if (Array.isArray(values)) {
           if (values.length > 0) {
             const hasExclusiveOption = values.some(val => exclusiveOptions.includes(val));
             
             if (hasExclusiveOption) {
+              // Handle exclusive options (N/A, Unknown, None)
               const exclusiveValue = values.find(val => exclusiveOptions.includes(val));
               if (exclusiveValue === 'N/A' && naCheckbox) {
                 naCheckbox.checked = true;
               } else {
                 const exclusiveCheckbox = Array.from(allCheckboxes).find(cb => cb.value === exclusiveValue);
-                if (exclusiveCheckbox) exclusiveCheckbox.checked = true;
+                if (exclusiveCheckbox) {
+                  exclusiveCheckbox.checked = true;
+                } else {
+                  console.warn(`Exclusive value "${exclusiveValue}" not found in checkbox options for ${pathStr}`);
+                }
               }
             } else {
+              // Handle regular multi-select values
               values.forEach(val => {
                 const checkbox = Array.from(allCheckboxes).find(cb => cb.value === val);
-                if (checkbox) checkbox.checked = true;
+                if (checkbox) {
+                  checkbox.checked = true;
+                } else {
+                  console.warn(`Value "${val}" not found in checkbox options for ${pathStr}`);
+                }
               });
             }
           }
         }
         
+        // Update the display
         updateMultiSelectDisplayLocal(container.id, pathStr);
+        
+        // Validate the selected values (special values are always valid)
+        setTimeout(() => {
+          // Check if any special values are selected
+          const hasSpecialValue = Array.isArray(values) 
+            ? values.some(val => exclusiveOptions.includes(val) || val === -9999 || val === -8888)
+            : exclusiveOptions.includes(values) || values === -9999 || values === -8888;
+          
+          if (!hasSpecialValue && !isValidValueForField(pathStr, values)) {
+            markFieldAsInvalid(pathStr, values);
+          }
+        }, 150);
       } else {
         console.warn(`No multi-select container found for: ${pathStr}`);
+        
+        // Still validate the value
+        setTimeout(() => {
+          // Check for special values
+          const hasSpecialValue = Array.isArray(values)
+            ? values.some(val => val === 'N/A' || val === 'Unknown/Unsure' || 
+                              val === 'None of the listed options' || 
+                              val === -9999 || val === -8888)
+            : values === 'N/A' || values === 'Unknown/Unsure' || 
+              values === 'None of the listed options' || 
+              values === -9999 || values === -8888;
+          
+          if (!hasSpecialValue && !isValidValueForField(pathStr, values)) {
+            markFieldAsInvalid(pathStr, values);
+          }
+        }, 100);
       }
     }
-  
-    function populateArrayOfObjects(pathStr, items) {
+
+      function populateArrayOfObjects(pathStr, items) {
       const container = document.getElementById('array_' + pathStr);
       if (!container) {
         console.warn(`Array container not found for: ${pathStr}`);
@@ -1929,7 +2234,14 @@
         
         input.addEventListener('change', function(e) {
           const fieldPath = this.dataset.path || this.name;
-          console.log(`Field changed: ${fieldPath}, Value:`, this.value || this.checked);
+          const currentValue = this.type === 'checkbox' ? this.checked : this.value;
+          
+          console.log(`Field changed: ${fieldPath}, Value:`, currentValue);
+          
+          // Validate the field after user changes it
+          setTimeout(() => {
+            validateFieldOnChange(fieldPath, currentValue);
+          }, 50);
           
           if (originalOnChange) {
             originalOnChange.call(this, e);
@@ -1980,6 +2292,352 @@
         selectedContainer.appendChild(placeholder);
       }
     }
+
+    // ===== new error handling ====== ASHOK
+    // ============ INVALID DATA VALIDATION FUNCTIONS ============
+    let invalidFields = new Map(); // Map to track invalid fields: path -> {loadedValue, validOptions}
+
+    /**
+     * Validates if a value is valid for a given field based on choices.json
+     */
+    function isValidValueForField(fieldPath, value) {
+      // Special values that are always valid
+      const specialStringValues = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
+      const specialNumericValues = [-9999, -8888, '-9999', '-8888'];
+      
+      // Check for special values first
+      if (Array.isArray(value)) {
+        // For arrays, check each value
+        const allSpecial = value.every(val => 
+          specialStringValues.includes(val) || 
+          specialNumericValues.includes(val)
+        );
+        if (allSpecial) return true;
+        
+        // Check if any value is special (mixed array)
+        const hasSpecial = value.some(val => 
+          specialStringValues.includes(val) || 
+          specialNumericValues.includes(val)
+        );
+      } else {
+        // Single value
+        if (specialStringValues.includes(value) || specialNumericValues.includes(value)) {
+          return true; // Special values are always valid
+        }
+      }
+      
+      // Get the choice configuration for this field
+      const choiceConfig = getDynamicValues(fieldPath);
+      
+      if (!choiceConfig || !choiceConfig.values) {
+        // If no choices defined, all values are valid
+        return true;
+      }
+      
+      const validValues = choiceConfig.values;
+      
+      // Handle multi-select values (arrays)
+      if (Array.isArray(value)) {
+        // Filter out special values that we've already handled
+        const nonSpecialValues = value.filter(val => 
+          !specialStringValues.includes(val) && !specialNumericValues.includes(val)
+        );
+        
+        if (nonSpecialValues.length === 0) {
+          return true; // All values were special
+        }
+        
+        // For multi-select, all non-special values must be in the valid list
+        return nonSpecialValues.every(val => {
+          // Check if value is directly in the list
+          if (validValues.includes(val)) {
+            return true;
+          }
+          
+          // Check for numeric range values like "1-50"
+          if (typeof val === 'number' || !isNaN(val)) {
+            const numVal = Number(val);
+            return validValues.some(validVal => {
+              if (typeof validVal === 'string' && validVal.includes('-')) {
+                const rangeMatch = validVal.match(/^(\d+)-(\d+)$/);
+                if (rangeMatch) {
+                  const min = parseInt(rangeMatch[1]);
+                  const max = parseInt(rangeMatch[2]);
+                  return numVal >= min && numVal <= max;
+                }
+              }
+              return false;
+            });
+          }
+          
+          return false;
+        });
+      }
+      
+      // Handle single-select values
+      
+      // Check if value is directly in the list
+      if (validValues.includes(value)) {
+        return true;
+      }
+      
+      // Check for numeric range values like "1-50"
+      if (typeof value === 'number' || !isNaN(value)) {
+        const numVal = Number(value);
+        return validValues.some(validVal => {
+          if (typeof validVal === 'string' && validVal.includes('-')) {
+            const rangeMatch = validVal.match(/^(\d+)-(\d+)$/);
+            if (rangeMatch) {
+              const min = parseInt(rangeMatch[1]);
+              const max = parseInt(rangeMatch[2]);
+              return numVal >= min && numVal <= max;
+            }
+          }
+          return Number(validVal) === numVal;
+        });
+      }
+      
+      // For string values that might be in the list
+      return validValues.includes(value.toString());
+    }
+
+    /**
+     * Marks a field as invalid and stores the invalid value
+     */
+    function markFieldAsInvalid(fieldPath, loadedValue) {
+      // Get the field element
+      let fieldElement = document.querySelector(`[data-path="${fieldPath}"]`);
+      
+      if (!fieldElement) {
+        // For nested fields in multi-select containers
+        const multiSelectContainer = document.querySelector(`[data-field-path="${fieldPath}"] .multi-select-container`);
+        if (multiSelectContainer) {
+          fieldElement = multiSelectContainer;
+        } else {
+          // Try other input types
+          fieldElement = document.querySelector(`select[data-path="${fieldPath}"], 
+                                                input[data-path="${fieldPath}"], 
+                                                textarea[data-path="${fieldPath}"]`);
+        }
+      }
+      
+      if (!fieldElement) {
+        console.warn(`Could not find element for invalid field: ${fieldPath}`);
+        return;
+      }
+      
+      // Add invalid class to the element
+      fieldElement.classList.add('invalid-data');
+      
+      // Store the invalid data in our map
+      const choiceConfig = getDynamicValues(fieldPath);
+      invalidFields.set(fieldPath, {
+        loadedValue: loadedValue,
+        validOptions: choiceConfig?.values || [],
+        element: fieldElement
+      });
+      
+      // Add tooltip for mouse hover
+      fieldElement.addEventListener('mouseenter', showInvalidTooltip);
+      fieldElement.addEventListener('mouseleave', hideInvalidTooltip);
+      
+      console.log(`Marked field as invalid: ${fieldPath}`, loadedValue);
+    }
+
+    /**
+     * Clears invalid status from a field
+     */
+    function clearFieldInvalidStatus(fieldPath) {
+      const fieldInfo = invalidFields.get(fieldPath);
+      if (fieldInfo && fieldInfo.element) {
+        fieldInfo.element.classList.remove('invalid-data');
+        fieldInfo.element.removeEventListener('mouseenter', showInvalidTooltip);
+        fieldInfo.element.removeEventListener('mouseleave', hideInvalidTooltip);
+      }
+      invalidFields.delete(fieldPath);
+      
+      // Update the invalid fields summary
+      updateInvalidFieldsSummary();
+    }
+
+    /**
+     * Shows tooltip for invalid fields
+     */
+    function showInvalidTooltip(event) {
+      const element = event.currentTarget;
+      const fieldPath = element.dataset?.path || 
+                        element.closest('[data-field-path]')?.dataset?.fieldPath;
+      
+      if (!fieldPath) return;
+      
+      const fieldInfo = invalidFields.get(fieldPath);
+      if (!fieldInfo) return;
+      
+      // Create or update tooltip
+      let tooltip = element.querySelector('.invalid-tooltip');
+      if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.className = 'invalid-tooltip';
+        element.appendChild(tooltip);
+      }
+      
+      let message = `Invalid value: "${fieldInfo.loadedValue}"\n`;
+      if (fieldInfo.validOptions.length > 0) {
+        message += `Valid options: ${fieldInfo.validOptions.slice(0, 3).join(', ')}`;
+        if (fieldInfo.validOptions.length > 3) {
+          message += `... and ${fieldInfo.validOptions.length - 3} more`;
+        }
+      }
+      
+      tooltip.textContent = message;
+      tooltip.style.display = 'block';
+      
+      // Position tooltip
+      const rect = element.getBoundingClientRect();
+      tooltip.style.top = `${rect.top - tooltip.offsetHeight - 5}px`;
+      tooltip.style.left = `${rect.left}px`;
+    }
+
+    /**
+     * Hides tooltip for invalid fields
+     */
+    function hideInvalidTooltip(event) {
+      const element = event.currentTarget;
+      const tooltip = element.querySelector('.invalid-tooltip');
+      if (tooltip) {
+        tooltip.style.display = 'none';
+      }
+    }
+
+    /**
+     * Creates and displays a summary of all invalid fields
+     */
+    function updateInvalidFieldsSummary() {
+      // Remove existing summary if any
+      const existingSummary = document.getElementById('invalid-fields-summary');
+      if (existingSummary) {
+        existingSummary.remove();
+      }
+      
+      // If no invalid fields, don't show summary
+      if (invalidFields.size === 0) {
+        return;
+      }
+      
+      // Create summary container
+      const summary = document.createElement('div');
+      summary.id = 'invalid-fields-summary';
+      summary.className = 'invalid-fields-summary';
+      
+      let summaryHtml = `
+        <button class="close-summary" onclick="this.parentElement.remove()">×</button>
+        <h3>⚠️ Invalid Data Found (${invalidFields.size} field${invalidFields.size > 1 ? 's' : ''})</h3>
+        <p>The following fields contain values not in the allowed list:</p>
+        <ul>
+      `;
+      
+      // Add each invalid field to the list
+      invalidFields.forEach((fieldInfo, fieldPath) => {
+        const displayPath = fieldPath.split('.').pop(); // Show only last part of path
+        const loadedValue = Array.isArray(fieldInfo.loadedValue) 
+          ? fieldInfo.loadedValue.join(', ') 
+          : fieldInfo.loadedValue;
+        
+        summaryHtml += `
+          <li onclick="scrollToInvalidField('${fieldPath}')">
+            <strong>${displayPath}:</strong> "${loadedValue}"
+          </li>
+        `;
+      });
+      
+      summaryHtml += `
+        </ul>
+        <p style="margin-top: 10px; font-size: 12px;">
+          Click on a field above to scroll to it. Select a valid value from the dropdown to fix.
+        </p>
+      `;
+      
+      summary.innerHTML = summaryHtml;
+      
+      // Insert summary at the top of the form
+      const form = document.getElementById('editor-form') || 
+                  document.querySelector('.tab-content.active') || 
+                  document.querySelector('.tabs-container');
+      if (form) {
+        form.parentNode.insertBefore(summary, form);
+      }
+    }
+
+    /**
+     * Scrolls to an invalid field when clicked in the summary
+     */
+    function scrollToInvalidField(fieldPath) {
+      const fieldElement = document.querySelector(`[data-field-path="${fieldPath}"],
+                                                  select[data-path="${fieldPath}"],
+                                                  input[data-path="${fieldPath}"],
+                                                  textarea[data-path="${fieldPath}"]`);
+      
+      if (fieldElement) {
+        // Scroll to the field
+        fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Highlight with a temporary animation
+        fieldElement.style.transition = 'all 0.3s';
+        fieldElement.style.boxShadow = '0 0 0 3px rgba(220, 53, 69, 0.3)';
+        
+        setTimeout(() => {
+          fieldElement.style.boxShadow = '';
+        }, 2000);
+        
+        // Focus the field if it's an input
+        const inputElement = fieldElement.querySelector('input, select, textarea') || fieldElement;
+        if (inputElement.focus) {
+          inputElement.focus();
+        }
+      }
+    }
+
+    /**
+     * Validates all fields after data is loaded
+     */
+    function validateLoadedData(data, parentPath = []) {
+      invalidFields.clear(); // Clear previous invalid fields
+      
+      for (const [key, value] of Object.entries(data)) {
+        const currentPath = [...parentPath, key];
+        const pathStr = currentPath.join('.');
+        
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          // Recursively validate nested objects
+          validateLoadedData(value, currentPath);
+        } else if (value !== null && value !== undefined && value !== '') {
+          // Validate this field's value
+          if (!isValidValueForField(pathStr, value)) {
+            console.log(`Invalid value found: ${pathStr} =`, value);
+            markFieldAsInvalid(pathStr, value);
+          }
+        }
+      }
+      
+      // Update the invalid fields summary
+      updateInvalidFieldsSummary();
+    }
+
+    /**
+     * Validates a single field when user changes it
+     */
+    function validateFieldOnChange(fieldPath, currentValue) {
+      if (!isValidValueForField(fieldPath, currentValue)) {
+        // Field is still invalid
+        if (!invalidFields.has(fieldPath)) {
+          markFieldAsInvalid(fieldPath, currentValue);
+        }
+      } else {
+        // Field is now valid, clear invalid status
+        clearFieldInvalidStatus(fieldPath);
+      }
+    }
+    // ===== END error handling ====== ASHOK
 
     // ============ WINDOW FUNCTIONS (Global scope) ============
     window.toggleNested = function(header) {
@@ -2059,15 +2717,28 @@
         });
       }
       
+      // Validate after change
+      setTimeout(() => {
+        const currentValue = getFieldValue(path);
+        validateFieldOnChange(path, currentValue);
+      }, 50);
+
       updateMultiSelectDisplay(dropdownId, path);
     };
 
     window.handleNAChange = function(path, dropdownId) {
       const naCheckbox = document.getElementById(path + '_na');
+
       if (naCheckbox && naCheckbox.checked) {
         const multiSelectCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`);
         multiSelectCheckboxes.forEach(cb => cb.checked = false);
       }
+      // Validate after change
+      setTimeout(() => {
+        const currentValue = getFieldValue(path);
+        validateFieldOnChange(path, currentValue);
+      }, 50);
+      
       updateMultiSelectDisplay(dropdownId, path);
     };
 

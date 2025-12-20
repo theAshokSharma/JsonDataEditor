@@ -58,12 +58,18 @@ export class FileLoader {
 
   private async loadJsonFile(filePath: string, errorMessage: string): Promise<any> {
     try {
-      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-      const text = document.getText();
-      return JSON.parse(text);
+      // FIX: Use workspace.fs.readFile instead of openTextDocument
+      // This reads directly from disk without caching
+      const uri = vscode.Uri.file(filePath);
+      const fileContent = await vscode.workspace.fs.readFile(uri);
+      const text = Buffer.from(fileContent).toString('utf8');
+      
+      // Parse and return the JSON
+      const jsonData = JSON.parse(text);
+      return jsonData;
     } catch (error) {
-      vscode.window.showErrorMessage(errorMessage);
+      vscode.window.showErrorMessage(`${errorMessage}: ${error}`);
       throw error;
     }
-  }
+  }  
 }

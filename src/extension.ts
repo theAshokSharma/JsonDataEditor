@@ -1,4 +1,4 @@
- import * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { SchemaEditorPanel } from './panel/SchemaEditorPanel';
 import { ConfigManager } from './config/ConfigManager';
 

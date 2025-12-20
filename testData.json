@@ -11,7 +11,7 @@
       "mbr_city": "Plymouth",
       "mbr_state": "MN",
       "mbr_postal_code": "55446",
-      "mbr_country": ""
+      "mbr_country": "US"
     },
     "mbr_country_lived_in": "None of the listed options"
   },
@@ -23,10 +23,10 @@
   },
   "lifestyle": {
     "mbr_smoke_cigarette": "No",
-    "mbr_cig_a_day": "",
-    "mbr_cig_total_yrs": "",
-    "mbr_cig_start_year": null,
-    "mbr_cig_end_year": null,
+    "mbr_cig_a_day": "N/A",
+    "mbr_cig_total_yrs": "N/A",
+    "mbr_cig_start_year": "1900",
+    "mbr_cig_end_year": "1900",
     "mbr_smoke_cigar_pipe": "No",
     "mbr_smoke_ecig_vape": "N/A",
     "mbr_second_hand_smoking": "No",
@@ -47,8 +47,15 @@
     "mbr_birth_control_use": "N/A"
   },
   "medical_history": {
-    "mbr_diag_cancer_que": "No",
-    "mbr_cancer_types_hist": "N/A",
+    "mbr_diag_cancer_que": "Yes",
+    "mbr_cancer_types_hist": [
+      "Bladder Cancer",
+      "Brain Cancer",
+      "Colorectal Cancer",
+      "Endocrine Cancer",
+      "Esophagus Cancer",
+      "Leukemia"
+    ],    
     "mbr_chronic_medical_que": "No",
     "mbr_chronic_medical_conditions": "N/A",
     "mbr_infection_diagnosis": [
@@ -97,7 +104,10 @@
     "mbr_genetic_test_que": "No",
     "mbr_genetic_mutation": "N/A",
     "mbr_genetic_syndrome": [
-      "None of the listed options"
+      "Ataxia-telangiectasia (A-T)",
+      "BAP1 Tumor Predisposition Syndrome",
+      "Birt-Hogg-Dube Syndrome (BHD)",
+      "Bloom Syndrome"
     ]
   }
 }

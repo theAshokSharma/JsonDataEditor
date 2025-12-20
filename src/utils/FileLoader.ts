@@ -6,7 +6,7 @@ export class FileLoader {
   }
 
   async loadChoices(filePath: string): Promise<any> {
-    return this.loadJsonFile(filePath, 'Invalid JSON choices file');
+    return this.loadJsonFile(filePath, 'Invalid JSON options file');
   }
 
   async loadData(filePath: string): Promise<any> {

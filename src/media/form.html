@@ -741,7 +741,7 @@
   <div class="container">
     <div class="header">
       <div class="header-left">
-        <button id="configBtn" title="Change schema/choices configuration">
+        <button id="configBtn" title="Change schema/options configuration">
           <span style="font-size: 14px;">⚙️</span> Config
         </button>
         <div class="schema-info">
@@ -804,7 +804,7 @@
       if (window.currentSchema) {
         handleSchemaUpdate({
           schema: window.currentSchema,
-          choices: window.customChoices || {},
+          options: window.customChoices || {},
           definitions: window.definitions || {},
           conditionalRules: window.conditionalRules || {}
         });
@@ -870,7 +870,7 @@
     // ============ MESSAGE HANDLERS ============
     function handleSchemaUpdate(message) {
       if (message.schema) currentSchema = message.schema;
-      if (message.choices) customChoices = message.choices;
+      if (message.options) customChoices = message.options;
       if (message.definitions) definitions = message.definitions;
       if (message.conditionalRules) conditionalRules = message.conditionalRules;
 

@@ -71,7 +71,7 @@ export class ConfigManager implements vscode.Disposable {
             break;
             
           case 'browseChoices':
-            const choicesUri = await this.browseForFile('Select Choices JSON File (Optional)', 'json');
+            const choicesUri = await this.browseForFile('Select Options JSON File (Optional)', 'json');
             if (choicesUri) {
               panel.webview.postMessage({
                 command: 'updateChoicesPath',
@@ -99,7 +99,7 @@ export class ConfigManager implements vscode.Disposable {
       // Check schema file exists
       await vscode.workspace.fs.stat(vscode.Uri.file(config.schemaPath));
       
-      // Check choices file exists if provided
+      // Check options file exists if provided
       if (config.choicesPath) {
         await vscode.workspace.fs.stat(vscode.Uri.file(config.choicesPath));
       }
@@ -268,7 +268,7 @@ export class ConfigManager implements vscode.Disposable {
           <div class="instructions">
             <h3>📋 Setup Instructions</h3>
             <p>1. Select your JSON schema file (required)</p>
-            <p>2. Optionally select a choices file for custom dropdown options</p>
+            <p>2. Optionally select a options file for custom dropdown options</p>
             <p>3. Click "Confirm" to start editing your data</p>
           </div>
           
@@ -289,16 +289,16 @@ export class ConfigManager implements vscode.Disposable {
           </div>
           
           <div class="form-group">
-            <label>Choices JSON File <span class="optional">(optional)</span></label>
+            <label>Options JSON File <span class="optional">(optional)</span></label>
             <div class="input-group">
               <input type="text" 
                      id="choicesPath" 
-                     placeholder="Path to your choices.json file"
+                     placeholder="Path to your options.json file"
                      value="${existingConfig?.choicesPath || ''}">
               <button class="browse-btn" onclick="browseChoices()">Browse</button>
             </div>
-            <div class="file-info" id="choices-info">
-              ${existingConfig?.choicesPath ? `Current: ${existingConfig.choicesPath}` : 'No choices file selected'}
+            <div class="file-info" id="options-info">
+              ${existingConfig?.choicesPath ? `Current: ${existingConfig.choicesPath}` : 'No options file selected'}
             </div>
           </div>
           
@@ -330,7 +330,7 @@ export class ConfigManager implements vscode.Disposable {
               infoEl.textContent = 'Selected: ' + path;
               infoEl.style.color = 'var(--vscode-charts-green)';
             } else {
-              infoEl.textContent = fieldId === 'schema' ? 'No schema file selected' : 'No choices file selected';
+              infoEl.textContent = fieldId === 'schema' ? 'No schema file selected' : 'No options file selected';
               infoEl.style.color = 'var(--vscode-descriptionForeground)';
             }
           }
@@ -378,7 +378,7 @@ export class ConfigManager implements vscode.Disposable {
                 
               case 'updateChoicesPath':
                 document.getElementById('choicesPath').value = message.path;
-                updateFileInfo('choices', message.path);
+                updateFileInfo('options', message.path);
                 hideError();
                 break;
                 
@@ -390,7 +390,7 @@ export class ConfigManager implements vscode.Disposable {
           
           // Initialize file info displays
           updateFileInfo('schema', '${existingConfig?.schemaPath || ''}');
-          updateFileInfo('choices', '${existingConfig?.choicesPath || ''}');
+          updateFileInfo('options', '${existingConfig?.choicesPath || ''}');
         </script>
       </body>
       </html>

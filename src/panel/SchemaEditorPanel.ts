@@ -95,19 +95,19 @@ export class SchemaEditorPanel {
       // Load schema
       const schema = await this._fileLoader.loadSchema(this._config.schemaPath);
       
-      // Load choices if provided
-      let choices = {};
+      // Load options if provided
+      let options = {};
       if (this._config.choicesPath) {
         try {
-          choices = await this._fileLoader.loadChoices(this._config.choicesPath);
+          options = await this._fileLoader.loadChoices(this._config.choicesPath);
         } catch (error) {
-          console.warn('Failed to load choices file:', error);
-          vscode.window.showWarningMessage('Choices file could not be loaded, using schema defaults');
+          console.warn('Failed to load options file:', error);
+          vscode.window.showWarningMessage('Options file could not be loaded, using schema defaults');
         }
       }
       
       // Render form with loaded data
-      this._panel.webview.html = this._formRenderer.renderForm(schema, choices);
+      this._panel.webview.html = this._formRenderer.renderForm(schema, options);
       
       // Update panel title with schema name
       const schemaTitle = schema.title || 'JSON Editor';
@@ -135,19 +135,19 @@ export class SchemaEditorPanel {
       // Load schema
       const schema = await this._fileLoader.loadSchema(this._config.schemaPath);
       
-      // Load choices if provided
-      let choices = {};
+      // Load options if provided
+      let options = {};
       if (this._config.choicesPath) {
         try {
-          choices = await this._fileLoader.loadChoices(this._config.choicesPath);
+          options = await this._fileLoader.loadChoices(this._config.choicesPath);
         } catch (error) {
-          console.warn('Failed to load choices file:', error);
-          vscode.window.showWarningMessage('Choices file could not be loaded, using schema defaults');
+          console.warn('Failed to load options file:', error);
+          vscode.window.showWarningMessage('Options file could not be loaded, using schema defaults');
         }
       }
       
       // Render form with loaded data
-      this._panel.webview.html = this._formRenderer.renderForm(schema, choices);
+      this._panel.webview.html = this._formRenderer.renderForm(schema, options);
       
       // Update panel title with schema name
       const schemaTitle = schema.title || 'JSON Editor';

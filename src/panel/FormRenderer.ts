@@ -8,7 +8,7 @@ export class FormRenderer {
     console.log('FormRenderer constructor - extensionUri:', extensionUri.fsPath);
   }
 
-  renderForm(schema: any, choices: any = {}, initialData: any = {}): string {
+  renderForm(schema: any, options: any = {}, initialData: any = {}): string {
     try {
       // First, let's find where the form.html actually is
       const templatePath = this.findFormHtml();
@@ -28,7 +28,7 @@ export class FormRenderer {
       }
       
       // Prepare data for injection
-      const dataScript = this.createDataScript(schema, choices, initialData);
+      const dataScript = this.createDataScript(schema, options, initialData);
       // console.log('Data script created, length:', dataScript.length);
       
       // Inject data script
@@ -100,24 +100,24 @@ export class FormRenderer {
     return possiblePaths[0]; // Default to development structure
   }
   
-  private createDataScript(schema: any, choices: any, initialData: any): string {
+  private createDataScript(schema: any, options: any, initialData: any): string {
    return `
       <script>
         // Data injected by FormRenderer
         try {
           window.currentSchema = ${JSON.stringify(schema || {})};
-          window.customChoices = ${JSON.stringify(choices || {})};
+          window.customChoices = ${JSON.stringify(options || {})};
           window.initialData = ${JSON.stringify(initialData || {})};
           window.definitions = ${JSON.stringify(
             (schema || {}).definitions || (schema || {}).$defs || {}
           )};
           window.conditionalRules = ${JSON.stringify(
-            (choices || {}).conditional_rules || {}
+            (options || {}).conditional_rules || {}
           )};
           
           // Log for debugging
           // console.log('Schema loaded:', window.currentSchema && Object.keys(window.currentSchema).length > 0);
-          // console.log('Choices loaded:', window.customChoices && Object.keys(window.customChoices).length > 0);
+          // console.log('Options loaded:', window.customChoices && Object.keys(window.customChoices).length > 0);
           // console.log('Initial data loaded:', window.initialData && Object.keys(window.initialData).length > 0);
         } catch (error) {
           console.error('Error parsing injected data:', error);

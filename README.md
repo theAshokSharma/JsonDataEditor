@@ -1,4 +1,4 @@
-## Example of Choices.json 
+## Example of Options.json 
 
 ```
 {

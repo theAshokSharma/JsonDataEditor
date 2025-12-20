@@ -2,7 +2,7 @@
   "schema": {
     "path": "~/Developer/github/blueaura/vsExt/JsonDataEditor/schema.json"
   },
-  "choices": {
-    "path": "~/Developer/github/blueaura/vsExt/JsonDataEditor/choices.json"
+  "options": {
+    "path": "~/Developer/github/blueaura/vsExt/JsonDataEditor/options.json"
   }
 }

@@ -782,6 +782,7 @@
     let initialData = {};
     let definitions = {};
     let conditionalRules = {};
+    let exclusiveOptionsMap = {};   // list all exclusive values for multi-select options    
 
     // Track invalid fields: path → { loadedValue, validOptions, element }
     const invalidFields = new Map();
@@ -1722,23 +1723,47 @@
 
     window.handleMultiSelectChange = function(path, dropdownId) {
       const target = event.target;
-      const exclusive = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
-      if (exclusive.includes(target.value) && target.checked) {
-        document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`)
-          .forEach(cb => cb !== target && (cb.checked = false));
-      } else if (target.checked) {
-        document.querySelectorAll(`[data-path="${path}"].na-checkbox`)
-          .forEach(cb => cb.checked = false);
-      }
-      updateMultiSelectDisplay(dropdownId, path);
-      setTimeout(() => validateFieldOnChange(path, getFieldValue(path)), 50);
-    };
+      const isChecked = target.checked;
+      const changedValue = target.value;
 
-    window.handleNAChange = function(path, dropdownId) {
-      if (event.target.checked) {
-        document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`)
-          .forEach(cb => cb.checked = false);
-      }
+      const exclusiveOptions = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
+    
+      if (exclusiveOptions.includes(changedValue) && isChecked) {
+        const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`);
+
+        allCheckboxes.forEach(cb => {
+          if (cb !== target) {
+            cb.checked = false;
+          }
+        });
+        } else if (target.checked) {
+          const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`);
+
+          allCheckboxes.forEach(cb => {
+            if (exclusiveOptions.includes(cb.value)) {
+              cb.checked = false;
+            }
+          });
+        }
+
+    //   ==== OLD CODE
+    //   if (exclusiveOptions.includes(target.value) && target.checked) {
+    //     document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`)
+    //       .forEach(cb => cb !== target && (cb.checked = false));
+    //   } else if (target.checked) {
+    //     document.querySelectorAll(`[data-path="${path}"].na-checkbox`)
+    //       .forEach(cb => cb.checked = false);
+    //   }
+    //   updateMultiSelectDisplay(dropdownId, path);
+    //   setTimeout(() => validateFieldOnChange(path, getFieldValue(path)), 50);
+    // };
+
+    // window.handleNAChange = function(path, dropdownId) {
+    //   if (event.target.checked) {
+    //     document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox`)
+    //       .forEach(cb => cb.checked = false);
+    //   }
+
       updateMultiSelectDisplay(dropdownId, path);
       setTimeout(() => validateFieldOnChange(path, getFieldValue(path)), 50);
     };

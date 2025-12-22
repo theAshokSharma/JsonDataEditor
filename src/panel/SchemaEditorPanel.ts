@@ -97,9 +97,9 @@ export class SchemaEditorPanel {
       
       // Load options if provided
       let options = {};
-      if (this._config.choicesPath) {
+      if (this._config.optionsPath) {
         try {
-          options = await this._fileLoader.loadChoices(this._config.choicesPath);
+          options = await this._fileLoader.loadOptionFile(this._config.optionsPath);
         } catch (error) {
           console.warn('Failed to load options file:', error);
           vscode.window.showWarningMessage('Options file could not be loaded, using schema defaults');
@@ -137,9 +137,9 @@ export class SchemaEditorPanel {
       
       // Load options if provided
       let options = {};
-      if (this._config.choicesPath) {
+      if (this._config.optionsPath) {
         try {
-          options = await this._fileLoader.loadChoices(this._config.choicesPath);
+          options = await this._fileLoader.loadOptionFile(this._config.optionsPath);
         } catch (error) {
           console.warn('Failed to load options file:', error);
           vscode.window.showWarningMessage('Options file could not be loaded, using schema defaults');

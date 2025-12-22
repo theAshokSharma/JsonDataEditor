@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 export interface EditorConfig {
   schemaPath: string;
-  choicesPath?: string;
+  optionsPath?: string;
 }
 
 export class ConfigManager implements vscode.Disposable {
@@ -30,7 +30,7 @@ export class ConfigManager implements vscode.Disposable {
           case 'confirm':
             const config: EditorConfig = {
               schemaPath: message.schemaPath,
-              choicesPath: message.choicesPath || undefined
+              optionsPath: message.optionsPath || undefined
             };
             
             // Validate files exist
@@ -71,11 +71,11 @@ export class ConfigManager implements vscode.Disposable {
             break;
             
           case 'browseChoices':
-            const choicesUri = await this.browseForFile('Select Options JSON File (Optional)', 'json');
-            if (choicesUri) {
+            const optionsUri = await this.browseForFile('Select Options JSON File (Optional)', 'json');
+            if (optionsUri) {
               panel.webview.postMessage({
                 command: 'updateChoicesPath',
-                path: choicesUri.fsPath
+                path: optionsUri.fsPath
               });
             }
             break;
@@ -100,8 +100,8 @@ export class ConfigManager implements vscode.Disposable {
       await vscode.workspace.fs.stat(vscode.Uri.file(config.schemaPath));
       
       // Check options file exists if provided
-      if (config.choicesPath) {
-        await vscode.workspace.fs.stat(vscode.Uri.file(config.choicesPath));
+      if (config.optionsPath) {
+        await vscode.workspace.fs.stat(vscode.Uri.file(config.optionsPath));
       }
       
       return true;
@@ -292,13 +292,13 @@ export class ConfigManager implements vscode.Disposable {
             <label>Options JSON File <span class="optional">(optional)</span></label>
             <div class="input-group">
               <input type="text" 
-                     id="choicesPath" 
+                     id="optionsPath" 
                      placeholder="Path to your options.json file"
-                     value="${existingConfig?.choicesPath || ''}">
+                     value="${existingConfig?.optionsPath || ''}">
               <button class="browse-btn" onclick="browseChoices()">Browse</button>
             </div>
             <div class="file-info" id="options-info">
-              ${existingConfig?.choicesPath ? `Current: ${existingConfig.choicesPath}` : 'No options file selected'}
+              ${existingConfig?.optionsPath ? `Current: ${existingConfig.optionsPath}` : 'No options file selected'}
             </div>
           </div>
           
@@ -345,7 +345,7 @@ export class ConfigManager implements vscode.Disposable {
           
           function confirmConfig() {
             const schemaPath = document.getElementById('schemaPath').value.trim();
-            const choicesPath = document.getElementById('choicesPath').value.trim();
+            const optionsPath = document.getElementById('optionsPath').value.trim();
             
             hideError();
             
@@ -358,7 +358,7 @@ export class ConfigManager implements vscode.Disposable {
             vscode.postMessage({
               command: 'confirm',
               schemaPath: schemaPath,
-              choicesPath: choicesPath || undefined
+              optionsPath: optionsPath || undefined
             });
           }
           
@@ -377,7 +377,7 @@ export class ConfigManager implements vscode.Disposable {
                 break;
                 
               case 'updateChoicesPath':
-                document.getElementById('choicesPath').value = message.path;
+                document.getElementById('optionsPath').value = message.path;
                 updateFileInfo('options', message.path);
                 hideError();
                 break;
@@ -390,7 +390,7 @@ export class ConfigManager implements vscode.Disposable {
           
           // Initialize file info displays
           updateFileInfo('schema', '${existingConfig?.schemaPath || ''}');
-          updateFileInfo('options', '${existingConfig?.choicesPath || ''}');
+          updateFileInfo('options', '${existingConfig?.optionsPath || ''}');
         </script>
       </body>
       </html>

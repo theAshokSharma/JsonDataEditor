@@ -8,7 +8,7 @@ export class FormRenderer {
     console.log('FormRenderer constructor - extensionUri:', extensionUri.fsPath);
   }
 
-  renderForm(schema: any, options: any = {}, initialData: any = {}): string {
+  renderForm(schemaInfo: any, optionsInfo: any = {}, initialData: any = {}): string {
     try {
       // First, let's find where the form.html actually is
       const templatePath = this.findFormHtml();
@@ -28,7 +28,7 @@ export class FormRenderer {
       }
       
       // Prepare data for injection
-      const dataScript = this.createDataScript(schema, options, initialData);
+      const dataScript = this.createDataScript(schemaInfo, optionsInfo, initialData);
       // console.log('Data script created, length:', dataScript.length);
       
       // Inject data script
@@ -100,19 +100,19 @@ export class FormRenderer {
     return possiblePaths[0]; // Default to development structure
   }
   
-  private createDataScript(schema: any, options: any, initialData: any): string {
+  private createDataScript(schemaInfo: any, optionsInfo: any, initialData: any): string {
    return `
       <script>
         // Data injected by FormRenderer
         try {
-          window.currentSchema = ${JSON.stringify(schema || {})};
-          window.customChoices = ${JSON.stringify(options || {})};
+          window.currentSchema = ${JSON.stringify(schemaInfo || {})};
+          window.customChoices = ${JSON.stringify(optionsInfo || {})};
           window.initialData = ${JSON.stringify(initialData || {})};
           window.definitions = ${JSON.stringify(
-            (schema || {}).definitions || (schema || {}).$defs || {}
+            (schemaInfo || {}).definitions || (schemaInfo || {}).$defs || {}
           )};
           window.conditionalRules = ${JSON.stringify(
-            (options || {}).conditional_rules || {}
+            (optionsInfo || {}).conditional_rules || {}
           )};
           
           // Log for debugging

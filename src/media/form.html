@@ -782,7 +782,7 @@
     let initialData = {};
     let definitions = {};
     let conditionalRules = {};
-    let exclusiveOptionsMap = {};   // list all exclusive values for multi-select options    
+    const exclusiveOptionsMap = new Map();   // list all exclusive values for multi-select options    
 
     // Track invalid fields: path → { loadedValue, validOptions, element }
     const invalidFields = new Map();
@@ -1010,6 +1010,12 @@
         naValue = optionConfig.na || null;
         hasNAOption = naValue !== null;
         responseType = optionConfig.response_type || null;
+
+        const exclusiveValues = optionConfig.exclusive_values || null;
+        exclusiveOptionsMap.set(pathStr, exclusiveValues);        
+
+        // console.log('Path: ', pathStr, ' Exclusive values :', exclusiveOptionsMap[pathStr] )
+
       } else if (Array.isArray(optionConfig)) {
         enumValues = optionConfig;
         responseType = type === 'array' ? 'multi-select' : 'single-select';
@@ -1727,6 +1733,9 @@
       const changedValue = target.value;
 
       const exclusiveOptions = ['N/A', 'Unknown/Unsure', 'None of the listed options'];
+      // Updated: Use dynamic exclusive options from map
+      // const exclusiveOptions = exclusiveOptionsMap[path] || [];
+        
     
       if (exclusiveOptions.includes(changedValue) && isChecked) {
         const allCheckboxes = document.querySelectorAll(`[data-path="${path}"].multi-select-checkbox, #${path}_na`);

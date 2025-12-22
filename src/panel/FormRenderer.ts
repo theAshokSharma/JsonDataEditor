@@ -106,7 +106,7 @@ export class FormRenderer {
         // Data injected by FormRenderer
         try {
           window.currentSchema = ${JSON.stringify(schemaInfo || {})};
-          window.customChoices = ${JSON.stringify(optionsInfo || {})};
+          window.customOptions = ${JSON.stringify(optionsInfo || {})};
           window.initialData = ${JSON.stringify(initialData || {})};
           window.definitions = ${JSON.stringify(
             (schemaInfo || {}).definitions || (schemaInfo || {}).$defs || {}
@@ -117,7 +117,7 @@ export class FormRenderer {
           
           // Log for debugging
           // console.log('Schema loaded:', window.currentSchema && Object.keys(window.currentSchema).length > 0);
-          // console.log('Options loaded:', window.customChoices && Object.keys(window.customChoices).length > 0);
+          // console.log('Options loaded:', window.customOptions && Object.keys(window.customOptions).length > 0);
           // console.log('Initial data loaded:', window.initialData && Object.keys(window.initialData).length > 0);
         } catch (error) {
           console.error('Error parsing injected data:', error);

@@ -70,11 +70,11 @@ export class ConfigManager implements vscode.Disposable {
             }
             break;
             
-          case 'browseChoices':
+          case 'browseOptions':
             const optionsUri = await this.browseForFile('Select Options JSON File (Optional)', 'json');
             if (optionsUri) {
               panel.webview.postMessage({
-                command: 'updateChoicesPath',
+                command: 'updateOptionsPath',
                 path: optionsUri.fsPath
               });
             }
@@ -295,7 +295,7 @@ export class ConfigManager implements vscode.Disposable {
                      id="optionsPath" 
                      placeholder="Path to your options.json file"
                      value="${existingConfig?.optionsPath || ''}">
-              <button class="browse-btn" onclick="browseChoices()">Browse</button>
+              <button class="browse-btn" onclick="browseOptions()">Browse</button>
             </div>
             <div class="file-info" id="options-info">
               ${existingConfig?.optionsPath ? `Current: ${existingConfig.optionsPath}` : 'No options file selected'}
@@ -339,8 +339,8 @@ export class ConfigManager implements vscode.Disposable {
             vscode.postMessage({ command: 'browseSchema' });
           }
           
-          function browseChoices() {
-            vscode.postMessage({ command: 'browseChoices' });
+          function browseOptions() {
+            vscode.postMessage({ command: 'browseOptions' });
           }
           
           function confirmConfig() {
@@ -376,7 +376,7 @@ export class ConfigManager implements vscode.Disposable {
                 hideError();
                 break;
                 
-              case 'updateChoicesPath':
+              case 'updateOptionsPath':
                 document.getElementById('optionsPath').value = message.path;
                 updateFileInfo('options', message.path);
                 hideError();

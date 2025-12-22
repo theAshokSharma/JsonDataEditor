@@ -778,7 +778,7 @@
   <script>
     // ============ GLOBAL VARIABLES ============
     let currentSchema = null;
-    let customChoices = {};
+    let customOptions = {};
     let initialData = {};
     let definitions = {};
     let conditionalRules = {};
@@ -804,7 +804,7 @@
       if (window.currentSchema) {
         handleSchemaUpdate({
           schema: window.currentSchema,
-          options: window.customChoices || {},
+          options: window.customOptions || {},
           definitions: window.definitions || {},
           conditionalRules: window.conditionalRules || {}
         });
@@ -870,7 +870,7 @@
     // ============ MESSAGE HANDLERS ============
     function handleSchemaUpdate(message) {
       if (message.schema) currentSchema = message.schema;
-      if (message.options) customChoices = message.options;
+      if (message.options) customOptions = message.options;
       if (message.definitions) definitions = message.definitions;
       if (message.conditionalRules) conditionalRules = message.conditionalRules;
 
@@ -988,15 +988,15 @@
         return createArrayOfObjects(key, prop, isRequired, path);
       }
 
-      const choiceConfig = getDynamicValues(pathStr);
+      const optionConfig = getDynamicValues(pathStr);
 
       let enumValues = [];
       let hasNAOption = false;
       let naValue = null;
       let responseType = null;
 
-      if (choiceConfig && typeof choiceConfig === 'object' && !Array.isArray(choiceConfig)) {
-        const rawValues = choiceConfig.values || [];
+      if (optionConfig && typeof optionConfig === 'object' && !Array.isArray(optionConfig)) {
+        const rawValues = optionConfig.values || [];
         enumValues = [];
         rawValues.forEach(val => {
           if (typeof val === 'string' && /^(\d+)-(\d+)$/.test(val)) {
@@ -1006,11 +1006,11 @@
             enumValues.push(val);
           }
         });
-        naValue = choiceConfig.na || null;
+        naValue = optionConfig.na || null;
         hasNAOption = naValue !== null;
-        responseType = choiceConfig.response_type || null;
-      } else if (Array.isArray(choiceConfig)) {
-        enumValues = choiceConfig;
+        responseType = optionConfig.response_type || null;
+      } else if (Array.isArray(optionConfig)) {
+        enumValues = optionConfig;
         responseType = type === 'array' ? 'multi-select' : 'single-select';
       } else {
         enumValues = prop.enum || [];
@@ -1369,7 +1369,7 @@
     // ============ DEPENDENCIES & CONDITIONAL RULES ============
     function initializeDependencies() {
       const deps = {};
-      for (const [field, config] of Object.entries(customChoices)) {
+      for (const [field, config] of Object.entries(customOptions)) {
         if (config?.dependent_values) {
           for (const depField of Object.keys(config.dependent_values)) {
             if (!deps[depField]) deps[depField] = [];
@@ -1381,7 +1381,7 @@
     }
 
     function getDynamicValues(fieldKey) {
-      const config = customChoices[fieldKey];
+      const config = customOptions[fieldKey];
       if (!config?.dependent_values) return config;
 
       const matched = {};
